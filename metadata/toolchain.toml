@@ -21,6 +21,14 @@ cnb_url = "https://cnb.cool/ecoslab/oss-cad-suite-build/-/releases/download/2026
 sha256 = "c3ffafe1549d5bf321b85e6ac30b3bc6af0af72093d5f45117380bcc0645a8e2"
 size = 740836017
 
+[sizer]
+github_repo = "openecos-projects/ecc-sizer"
+asset_name = "ecc-sizer-0.1.0-alpha-linux-x64.tar.gz"
+version = "0.1.0-alpha"
+url = "https://github.com/openecos-projects/ecc-sizer/releases/download/v0.1.0-alpha/ecc-sizer-0.1.0-alpha-linux-x64.tar.gz"
+sha256 = "d33a2167600711f35fb1dcef55983b0d669176988d8722ed8b22c03471dafee7"
+size = 85803792
+
 [pdk]
 name = "icsprout55"
 version = "v1.10.102"

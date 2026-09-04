@@ -42,6 +42,7 @@ let
 
   ecc = raw.ecc or { };
   oss = raw.oss_cad_suite or { };
+  sizer = raw.sizer or { };
   pdk = raw.pdk or { };
   platform = raw.platform or { };
   minGlibc = parseMinGlibc (platform.min_glibc or "");
@@ -76,6 +77,16 @@ let
       cnbUrl = requireCnb "OSS CAD Suite" (oss.cnb_url or "");
       sha256 = requireHex "oss-cad-suite" (oss.sha256 or "");
       size = oss.size or null;
+    };
+    sizer = {
+      version = sizer.version or "";
+      name = sizer.asset_name or "";
+      url = sizer.url or "";
+      sha256 = requireHex "sizer" (sizer.sha256 or "");
+      cnbUrl = sizer.cnb_url or "";
+      cnbSha256 = sizer.cnb_sha256 or "";
+      size = sizer.size or null;
+      githubRepo = sizer.github_repo or "";
     };
     pdk = {
       name = pdk.name or "";
@@ -119,6 +130,18 @@ else if (requireCnb "ECC" model.ecc.cnbUrl) == "" then
   throwUn "missing ECC cnb_url"
 else if model.ossCadSuite.version == "" then
   throwUn "missing OSS CAD Suite version"
+else if model.sizer.version == "" then
+  throwUn "missing ecc-sizer version"
+else if model.sizer.name != "ecc-sizer-${model.sizer.version}-linux-x64.tar.gz" then
+  throwUn "ecc-sizer asset must be named ecc-sizer-${model.sizer.version}-linux-x64.tar.gz"
+else if model.sizer.url == "" then
+  throwUn "missing ecc-sizer url"
+else if
+  model.sizer.cnbUrl != "" && (builtins.match "[0-9a-f]{64}" model.sizer.cnbSha256 == null)
+then
+  throwUn "sizer cnb_url requires cnb_sha256"
+else if model.sizer.cnbUrl == "" && model.sizer.cnbSha256 != "" then
+  throwUn "sizer cnb_sha256 set without cnb_url"
 else if model.pdk.version == "" then
   throwUn "missing ICS55 PDK version"
 else if builtins.length model.pdk.assets != 7 then

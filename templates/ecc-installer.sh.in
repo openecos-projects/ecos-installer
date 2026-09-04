@@ -30,6 +30,12 @@ OSS_CAD_ASSET_NAME="@OSS_CAD_ASSET_NAME@"
 OSS_CAD_SHA256="@OSS_CAD_SHA256@"
 OSS_CAD_URL="@OSS_CAD_URL@"
 OSS_CAD_CNB_URL="@OSS_CAD_CNB_URL@"
+SIZER_VERSION="@SIZER_VERSION@"
+SIZER_ASSET_NAME="@SIZER_ASSET_NAME@"
+SIZER_SHA256="@SIZER_SHA256@"
+SIZER_URL="@SIZER_URL@"
+SIZER_CNB_URL="@SIZER_CNB_URL@"
+SIZER_CNB_SHA256="@SIZER_CNB_SHA256@"
 PDK_NAME="@PDK_NAME@"
 PDK_VERSION="@PDK_VERSION@"
 PDK_BASE_ASSET_NAME="@PDK_BASE_ASSET_NAME@"
@@ -75,7 +81,7 @@ OPTIONS:
             Disable progress output
 
         --with-toolchain
-            Install OSS CAD Suite and the ICS55 PDK
+            Install OSS CAD Suite, the ICS55 PDK, and ecc-sizer
 
         --download-source auto|github|cnb
             Select download source for mirrored assets (default: auto)
@@ -709,6 +715,22 @@ find_oss_root() {
     return 1
 }
 
+find_sizer_root() {
+    local _staging="$1"
+    local _cand
+    if [ -e "$_staging/bin/Sizer" ] && [ -e "$_staging/libexec/Sizer" ]; then
+        printf '%s\n' "$_staging"
+        return 0
+    fi
+    for _cand in "$_staging"/*; do
+        if [ -e "$_cand/bin/Sizer" ] && [ -e "$_cand/libexec/Sizer" ]; then
+            printf '%s\n' "$_cand"
+            return 0
+        fi
+    done
+    return 1
+}
+
 find_pdk_root() {
     local _staging="$1"
     local _cand
@@ -786,6 +808,19 @@ validate_oss_dir() {
     return 1
 }
 
+validate_sizer_dir() {
+    local _dir="$1"
+    local _out
+    if [ ! -x "$_dir/bin/Sizer" ] || [ ! -x "$_dir/libexec/Sizer" ]; then
+        return 1
+    fi
+    if [ ! -f "$_dir/lib/ld-linux-x86-64.so.2" ]; then
+        return 1
+    fi
+    _out="$(run_without_loader_env "$_dir/bin/Sizer" --version 2>&1)"
+    printf '%s\n' "$_out" | grep -q "v${SIZER_VERSION}"
+}
+
 validate_pdk_dir() {
     local _root="$1"
     local _rel
@@ -861,6 +896,38 @@ install_oss_cad() {
     fi
     if ! validate_oss_dir "$_root"; then
         err "OSS CAD Suite validation failed"
+    fi
+    if [ "$_root" = "$_staging" ]; then
+        promote_dir "$_staging" "$_dest"
+        clear_staging
+    else
+        promote_dir "$_root" "$_dest"
+        rm -rf "$_staging"
+        clear_staging
+    fi
+    printf '%s\n' "$_dest"
+}
+
+install_sizer() {
+    local _archive="$1"
+    local _dest="${DATA_ROOT}/tools/ecc-sizer/${SIZER_VERSION}"
+    local _staging
+    local _root
+    if [ -e "$_dest" ]; then
+        if [ -d "$_dest" ] && validate_sizer_dir "$_dest"; then
+            say "reusing existing ecc-sizer ${SIZER_VERSION}"
+            printf '%s\n' "$_dest"
+            return 0
+        fi
+        err "existing ecc-sizer directory ${_dest} is invalid and will not be replaced in place"
+    fi
+    _staging="$(new_staging)"
+    extract_archive "$_archive" "$_staging"
+    if ! _root="$(find_sizer_root "$_staging")"; then
+        err "ecc-sizer archive is missing the expected bin/Sizer layout"
+    fi
+    if ! validate_sizer_dir "$_root"; then
+        err "ecc-sizer validation failed"
     fi
     if [ "$_root" = "$_staging" ]; then
         promote_dir "$_staging" "$_dest"
@@ -1031,9 +1098,11 @@ main() {
 
     ECC_ARCHIVE="$(download_ecc)"
     OSS_ARCHIVE=""
+    SIZER_ARCHIVE=""
     PDK_ARCHIVE=""
     if [ "$WITH_TOOLCHAIN" = 1 ]; then
         OSS_ARCHIVE="$(download_by_source "$OSS_CAD_SHA256" "$OSS_CAD_ASSET_NAME" "$OSS_CAD_URL" "$OSS_CAD_CNB_URL")"
+        SIZER_ARCHIVE="$(download_by_source "$SIZER_SHA256" "$SIZER_ASSET_NAME" "$SIZER_URL" "$SIZER_CNB_URL" "$SIZER_CNB_SHA256")"
         PDK_ARCHIVE="$(download_by_source "$PDK_BASE_SHA256" "$PDK_BASE_ASSET_NAME" "$PDK_BASE_URL" "$PDK_BASE_CNB_URL" "$PDK_BASE_CNB_SHA256")"
         prefetch_pdk_supplementals
     fi
@@ -1047,6 +1116,7 @@ main() {
     if [ "$WITH_TOOLCHAIN" = 1 ]; then
         OSS_ROOT="$(install_oss_cad "$OSS_ARCHIVE")"
         PDK_ROOT="$(install_pdk "$PDK_ARCHIVE")"
+        install_sizer "$SIZER_ARCHIVE"
         if [ -z "$OSS_ROOT" ] || [ -z "$PDK_ROOT" ]; then
             err "toolchain installation failed"
         fi

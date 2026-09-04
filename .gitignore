@@ -12,3 +12,5 @@ htmlcov/
 result
 result-*
 .direnv/
+.wrangler/
+cloudflare/node_modules/

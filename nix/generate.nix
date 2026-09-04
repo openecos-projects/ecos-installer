@@ -21,6 +21,13 @@ let
     "OSS_CAD_SHA256"
     "OSS_CAD_URL"
     "OSS_CAD_CNB_URL"
+    "SIZER_VERSION"
+    "SIZER_ASSET_NAME"
+    "SIZER_SHA256"
+    "SIZER_SIZE"
+    "SIZER_URL"
+    "SIZER_CNB_URL"
+    "SIZER_CNB_SHA256"
     "PDK_NAME"
     "PDK_VERSION"
     "PDK_BASE_ASSET_NAME"
@@ -61,6 +68,13 @@ let
     OSS_CAD_SHA256 = model.ossCadSuite.sha256;
     OSS_CAD_URL = model.ossCadSuite.url;
     OSS_CAD_CNB_URL = model.ossCadSuite.cnbUrl;
+    SIZER_VERSION = model.sizer.version;
+    SIZER_ASSET_NAME = model.sizer.name;
+    SIZER_SHA256 = model.sizer.sha256;
+    SIZER_SIZE = if model.sizer.size == null then "" else toString model.sizer.size;
+    SIZER_URL = model.sizer.url;
+    SIZER_CNB_URL = model.sizer.cnbUrl;
+    SIZER_CNB_SHA256 = model.sizer.cnbSha256;
     PDK_NAME = model.pdk.name;
     PDK_VERSION = model.pdk.version;
     PDK_BASE_ASSET_NAME = model.pdk.base.name;

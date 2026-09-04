@@ -26,6 +26,8 @@ CELL_LEFS = (
     "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/lef/ics55_LLSC_H7CL_ecos.lef",
 )
 TECH_LEF = "prtech/techLEF/N551P6M_ecos.lef"
+SIZER_VERSION = "0.1.0-alpha"
+SIZER_ASSET = f"ecc-sizer-{SIZER_VERSION}-linux-x64.tar.gz"
 LIBERTY_SPECS = (
     (
         "ics55_LLSC_H7CH_liberty.tar.bz2",
@@ -80,6 +82,13 @@ PLACEHOLDERS = (
     "OSS_CAD_SHA256",
     "OSS_CAD_URL",
     "OSS_CAD_CNB_URL",
+    "SIZER_VERSION",
+    "SIZER_ASSET_NAME",
+    "SIZER_SHA256",
+    "SIZER_SIZE",
+    "SIZER_URL",
+    "SIZER_CNB_URL",
+    "SIZER_CNB_SHA256",
     "PDK_NAME",
     "PDK_VERSION",
     "PDK_BASE_ASSET_NAME",
@@ -113,7 +122,8 @@ def pack_tar(members: dict[str, bytes | None], *, compression: str) -> bytes:
             base = PurePosixPath(name).name
             info.mode = (
                 0o755
-                if content.startswith(b"#!") or base in {"ecc", "yosys", "torch_shm_manager"}
+                if content.startswith(b"#!")
+                or base in {"ecc", "yosys", "torch_shm_manager", "Sizer"}
                 else 0o644
             )
             tar.addfile(info, BytesIO(content))
@@ -200,6 +210,28 @@ def build_oss_archive(*, slang: bool = True) -> bytes:
     )
 
 
+def sizer_script(version: str = SIZER_VERSION) -> bytes:
+    return f"""#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "OpenROAD v{version}"
+  echo "Usage : sizer -env <env_file> -f <cmd_file>"
+  exit 1
+fi
+exit 0
+""".encode()
+
+
+def build_sizer_archive(*, version: str = SIZER_VERSION) -> bytes:
+    return pack_tar(
+        {
+            f"ecc-sizer-{version}/bin/Sizer": sizer_script(version),
+            f"ecc-sizer-{version}/libexec/Sizer": b"ELF-sizer-payload\n",
+            f"ecc-sizer-{version}/lib/ld-linux-x86-64.so.2": b"ELF-loader\n",
+        },
+        compression="gz",
+    )
+
+
 def build_pdk_base_archive() -> bytes:
     members: dict[str, bytes | None] = {f"icsprout55-pdk/{TECH_LEF}": b"VERSION 5.8 ;\n"}
     for path in CELL_LEFS:
@@ -221,6 +253,8 @@ def build_release_assets(*, version: str = "0.1.0-alpha.11") -> dict[str, Packed
     assets["oss-cad-suite-linux-x64-20260827.tgz"] = PackedAsset(
         "oss-cad-suite-linux-x64-20260827.tgz", oss, sha256_bytes(oss)
     )
+    sizer = build_sizer_archive()
+    assets[SIZER_ASSET] = PackedAsset(SIZER_ASSET, sizer, sha256_bytes(sizer))
     pdk_base = build_pdk_base_archive()
     assets["icsprout55-pdk-v1.10.102.tar.gz"] = PackedAsset(
         "icsprout55-pdk-v1.10.102.tar.gz", pdk_base, sha256_bytes(pdk_base)
@@ -307,6 +341,7 @@ def render_installer(
 ) -> str:
     ecc = assets["ecc-cli-linux-x86_64.tar.gz"]
     oss = assets["oss-cad-suite-linux-x64-20260827.tgz"]
+    sizer = assets[SIZER_ASSET]
     pdk_base = assets["icsprout55-pdk-v1.10.102.tar.gz"]
     rows = []
     for spec in (*LIBERTY_SPECS, *GDS_SPECS):
@@ -337,6 +372,13 @@ def render_installer(
         "OSS_CAD_SHA256": oss.sha256,
         "OSS_CAD_URL": f"{base}/github/{oss.name}",
         "OSS_CAD_CNB_URL": f"{base}/cnb/{oss.name}",
+        "SIZER_VERSION": SIZER_VERSION,
+        "SIZER_ASSET_NAME": sizer.name,
+        "SIZER_SHA256": sizer.sha256,
+        "SIZER_SIZE": str(len(sizer.data)),
+        "SIZER_URL": f"{base}/github/{sizer.name}",
+        "SIZER_CNB_URL": "",
+        "SIZER_CNB_SHA256": "",
         "PDK_NAME": "icsprout55",
         "PDK_VERSION": "v1.10.102",
         "PDK_BASE_ASSET_NAME": pdk_base.name,
@@ -649,6 +691,7 @@ def test_toolchain_wrapper(h: Harness) -> None:
     dumped = read_wrapper_env(bindir / "ecc", env)
     oss = data / "tools" / "oss-cad-suite" / "20260827"
     pdk = data / "pdks" / "icsprout55" / "v1.10.102"
+    sizer = data / "tools" / "ecc-sizer" / SIZER_VERSION
     if dumped["OSS"] != str(oss) or dumped["PDK"] != str(pdk):
         fail(dumped)
     if str(oss / "bin") in dumped["PATH"].split(":"):
@@ -657,6 +700,10 @@ def test_toolchain_wrapper(h: Harness) -> None:
         fail(dumped)
     if not (oss / "bin" / "yosys").is_file():
         fail("yosys missing")
+    if not (sizer / "bin" / "Sizer").is_file() or not os.access(sizer / "bin" / "Sizer", os.X_OK):
+        fail("sizer missing or not executable")
+    if not (sizer / "libexec" / "Sizer").is_file():
+        fail("sizer libexec payload missing")
     for liberty in liberty_paths():
         if (pdk / liberty).stat().st_size <= 0:
             fail(liberty)
@@ -678,6 +725,8 @@ def test_ecc_only_upgrade_preserves_toolchain(h: Harness) -> None:
         fail(dumped)
     if not (data / "v0.1.0-alpha.11").is_dir() or not (data / "v0.1.0-alpha.12").is_dir():
         fail("version dirs missing")
+    if not (data / "tools" / "ecc-sizer" / SIZER_VERSION / "bin" / "Sizer").is_file():
+        fail("sizer missing after ecc-only upgrade")
 
 
 def test_failed_first_install(h: Harness) -> None:
@@ -927,6 +976,27 @@ def test_toolchain_failure_keeps_wrapper(h: Harness) -> None:
         }
 
 
+def test_sizer_bad_layout(h: Harness) -> None:
+    root = h.tmp()
+    env = xdg_env(root)
+    bad = pack_tar({"ecc-sizer-0.1.0-alpha/README": b"no binaries here\n"}, compression="gz")
+    saved_github = h.routes[f"/github/{SIZER_ASSET}"]
+    try:
+        h.routes[f"/github/{SIZER_ASSET}"] = {"data": bad}
+        mutated = dict(h.assets)
+        mutated[SIZER_ASSET] = PackedAsset(SIZER_ASSET, bad, sha256_bytes(bad))
+        result = run_installer(
+            h.installer(root / "installer.sh", assets=mutated), env, "--with-toolchain"
+        )
+        if result.returncode == 0 or "missing the expected bin/Sizer layout" not in result.stderr:
+            fail(result.stderr)
+        data = Path(env["XDG_DATA_HOME"]) / "ecc"
+        if (data / "tools" / "ecc-sizer" / SIZER_VERSION).exists():
+            fail("partial sizer install survived layout failure")
+    finally:
+        h.routes[f"/github/{SIZER_ASSET}"] = saved_github
+
+
 def test_conflicting_flags(h: Harness) -> None:
     root = h.tmp()
     installer = h.installer(root / "installer.sh")
@@ -944,6 +1014,8 @@ def test_cnb_mode_toolchain(h: Harness) -> None:
     saved = dict(h.routes)
     try:
         for name in h.assets:
+            if name == SIZER_ASSET:
+                continue
             h.routes[f"/github/{name}"] = {"status": 404}
         root = h.tmp()
         env = xdg_env(root)
@@ -958,9 +1030,13 @@ def test_cnb_mode_toolchain(h: Harness) -> None:
             fail(result.stderr)
         if "no CNB mirror" in result.stderr:
             fail(result.stderr)
+        if f"no CNB URL for {SIZER_ASSET}" not in result.stderr:
+            fail("expected sizer to fall back to GitHub in cnb mode")
         data = Path(env["XDG_DATA_HOME"]) / "ecc"
         if not (data / "tools" / "oss-cad-suite" / "20260827" / "bin" / "yosys").is_file():
             fail("cnb toolchain missing yosys")
+        if not (data / "tools" / "ecc-sizer" / SIZER_VERSION / "bin" / "Sizer").is_file():
+            fail("cnb toolchain missing sizer")
     finally:
         h.routes.clear()
         h.routes.update(saved)
@@ -1048,6 +1124,7 @@ CASES = [
     test_shadowed_ecc,
     test_unexpected_member_type,
     test_toolchain_failure_keeps_wrapper,
+    test_sizer_bad_layout,
     test_conflicting_flags,
     test_cnb_mode_toolchain,
     test_toolchain_github_fallback,
