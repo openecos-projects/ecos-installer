@@ -232,6 +232,33 @@ def build_sizer_archive(*, version: str = SIZER_VERSION) -> bytes:
     )
 
 
+def build_sizer_symlink_archive() -> bytes:
+    top = f"ecc-sizer-{SIZER_VERSION}"
+    buffer = BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+        for name in (f"{top}/bin", f"{top}/lib", f"{top}/libexec"):
+            info = tarfile.TarInfo(name)
+            info.type = tarfile.DIRTYPE
+            info.mode = 0o755
+            tar.addfile(info)
+        payload = b"ELF-sizer-payload\n"
+        info = tarfile.TarInfo(f"{top}/libexec/Sizer")
+        info.size = len(payload)
+        info.mode = 0o755
+        tar.addfile(info, BytesIO(payload))
+        loader = b"ELF-loader\n"
+        info = tarfile.TarInfo(f"{top}/lib/ld-linux-x86-64.so.2")
+        info.size = len(loader)
+        info.mode = 0o644
+        tar.addfile(info, BytesIO(loader))
+        link = tarfile.TarInfo(f"{top}/bin/Sizer")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "../libexec/Sizer"
+        link.mode = 0o755
+        tar.addfile(link)
+    return buffer.getvalue()
+
+
 def build_pdk_base_archive() -> bytes:
     members: dict[str, bytes | None] = {f"icsprout55-pdk/{TECH_LEF}": b"VERSION 5.8 ;\n"}
     for path in CELL_LEFS:
@@ -997,6 +1024,67 @@ def test_sizer_bad_layout(h: Harness) -> None:
         h.routes[f"/github/{SIZER_ASSET}"] = saved_github
 
 
+def test_sizer_wrong_version_banner(h: Harness) -> None:
+    root = h.tmp()
+    env = xdg_env(root)
+    bad = build_sizer_archive(version="9.9.9-mismatch")
+    saved_github = h.routes[f"/github/{SIZER_ASSET}"]
+    try:
+        h.routes[f"/github/{SIZER_ASSET}"] = {"data": bad}
+        mutated = dict(h.assets)
+        mutated[SIZER_ASSET] = PackedAsset(SIZER_ASSET, bad, sha256_bytes(bad))
+        result = run_installer(
+            h.installer(root / "installer.sh", assets=mutated), env, "--with-toolchain"
+        )
+        if result.returncode == 0 or "ecc-sizer validation failed" not in result.stderr:
+            fail(result.stderr)
+        data = Path(env["XDG_DATA_HOME"]) / "ecc"
+        if (data / "tools" / "ecc-sizer" / SIZER_VERSION).exists():
+            fail("partial sizer install survived banner mismatch")
+    finally:
+        h.routes[f"/github/{SIZER_ASSET}"] = saved_github
+
+
+def test_sizer_symlink_rejected(h: Harness) -> None:
+    root = h.tmp()
+    env = xdg_env(root)
+    bad = build_sizer_symlink_archive()
+    saved_github = h.routes[f"/github/{SIZER_ASSET}"]
+    try:
+        h.routes[f"/github/{SIZER_ASSET}"] = {"data": bad}
+        mutated = dict(h.assets)
+        mutated[SIZER_ASSET] = PackedAsset(SIZER_ASSET, bad, sha256_bytes(bad))
+        result = run_installer(
+            h.installer(root / "installer.sh", assets=mutated), env, "--with-toolchain"
+        )
+        if result.returncode == 0 or "ecc-sizer validation failed" not in result.stderr:
+            fail(result.stderr)
+        data = Path(env["XDG_DATA_HOME"]) / "ecc"
+        if (data / "tools" / "ecc-sizer" / SIZER_VERSION).exists():
+            fail("partial sizer install survived symlink rejection")
+    finally:
+        h.routes[f"/github/{SIZER_ASSET}"] = saved_github
+
+
+def test_missing_sizer_blocks_toolchain_export(h: Harness) -> None:
+    root = h.tmp()
+    env = xdg_env(root)
+    first = h.installer(root / "first.sh")
+    if run_installer(first, env, "--with-toolchain").returncode != 0:
+        fail("first toolchain install failed")
+    data, bindir, _cache, _config = roots(env)
+    shutil.rmtree(data / "tools" / "ecc-sizer" / SIZER_VERSION)
+    second = h.installer(root / "second.sh", version="0.1.0-alpha.12")
+    result = run_installer(second, env)
+    if result.returncode != 0:
+        fail(result.stderr)
+    if "without the managed toolchain" not in result.stderr:
+        fail(result.stderr)
+    dumped = read_wrapper_env(bindir / "ecc", env)
+    if dumped["OSS"] or dumped["PDK"]:
+        fail(f"incomplete toolchain exported: {dumped}")
+
+
 def test_conflicting_flags(h: Harness) -> None:
     root = h.tmp()
     installer = h.installer(root / "installer.sh")
@@ -1125,6 +1213,9 @@ CASES = [
     test_unexpected_member_type,
     test_toolchain_failure_keeps_wrapper,
     test_sizer_bad_layout,
+    test_sizer_wrong_version_banner,
+    test_sizer_symlink_rejected,
+    test_missing_sizer_blocks_toolchain_export,
     test_conflicting_flags,
     test_cnb_mode_toolchain,
     test_toolchain_github_fallback,

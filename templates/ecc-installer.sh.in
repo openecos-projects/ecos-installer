@@ -811,14 +811,26 @@ validate_oss_dir() {
 validate_sizer_dir() {
     local _dir="$1"
     local _out
+    local _path
+    for _path in "$_dir/bin/Sizer" "$_dir/libexec/Sizer" "$_dir/lib/ld-linux-x86-64.so.2"; do
+        if [ ! -f "$_path" ] || [ -L "$_path" ]; then
+            return 1
+        fi
+    done
     if [ ! -x "$_dir/bin/Sizer" ] || [ ! -x "$_dir/libexec/Sizer" ]; then
         return 1
     fi
-    if [ ! -f "$_dir/lib/ld-linux-x86-64.so.2" ]; then
-        return 1
-    fi
     _out="$(run_without_loader_env "$_dir/bin/Sizer" --version 2>&1)"
-    printf '%s\n' "$_out" | grep -q "v${SIZER_VERSION}"
+    printf '%s\n' "$_out" | awk -v want="v${SIZER_VERSION}" '
+        {
+            for (i = 1; i <= NF; i++) {
+                if ($i == want) {
+                    found = 1
+                }
+            }
+        }
+        END { exit found ? 0 : 1 }
+    '
 }
 
 validate_pdk_dir() {
@@ -1010,7 +1022,8 @@ install_pdk() {
 select_existing_toolchain() {
     local _oss="${DATA_ROOT}/tools/oss-cad-suite/${OSS_CAD_VERSION}"
     local _pdk="${DATA_ROOT}/pdks/${PDK_NAME}/${PDK_VERSION}"
-    if [ -d "$_oss" ] && [ -d "$_pdk" ] && validate_oss_dir "$_oss" && validate_pdk_dir "$_pdk"; then
+    local _sizer="${DATA_ROOT}/tools/ecc-sizer/${SIZER_VERSION}"
+    if [ -d "$_oss" ] && [ -d "$_pdk" ] && [ -d "$_sizer" ] && validate_oss_dir "$_oss" && validate_pdk_dir "$_pdk" && validate_sizer_dir "$_sizer"; then
         OSS_ROOT="$_oss"
         PDK_ROOT="$_pdk"
         return 0
