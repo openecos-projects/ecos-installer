@@ -227,6 +227,7 @@ def build_sizer_archive(*, version: str = SIZER_VERSION) -> bytes:
             f"ecc-sizer-{version}/bin/Sizer": sizer_script(version),
             f"ecc-sizer-{version}/libexec/Sizer": b"ELF-sizer-payload\n",
             f"ecc-sizer-{version}/lib/ld-linux-x86-64.so.2": b"ELF-loader\n",
+            f"ecc-sizer-{version}/src/sizer_os.tcl": b"# sizer os sentinel\n",
         },
         compression="gz",
     )
@@ -239,7 +240,7 @@ def build_sizer_symlink_archive() -> bytes:
     script = sizer_script()
     buffer = BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
-        for name in (f"{top}/bin", f"{top}/lib", f"{top}/libexec"):
+        for name in (f"{top}/bin", f"{top}/lib", f"{top}/libexec", f"{top}/src"):
             info = tarfile.TarInfo(name)
             info.type = tarfile.DIRTYPE
             info.mode = 0o755
@@ -253,6 +254,11 @@ def build_sizer_symlink_archive() -> bytes:
         info.size = len(loader)
         info.mode = 0o644
         tar.addfile(info, BytesIO(loader))
+        sentinel = b"# sizer os sentinel\n"
+        info = tarfile.TarInfo(f"{top}/src/sizer_os.tcl")
+        info.size = len(sentinel)
+        info.mode = 0o644
+        tar.addfile(info, BytesIO(sentinel))
         link = tarfile.TarInfo(f"{top}/bin/Sizer")
         link.type = tarfile.SYMTYPE
         link.linkname = "../libexec/Sizer"
@@ -269,7 +275,7 @@ def build_sizer_root_symlink_archive() -> bytes:
     script = sizer_script()
     buffer = BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
-        for name in ("payload/bin", "payload/lib", "payload/libexec"):
+        for name in ("payload/bin", "payload/lib", "payload/libexec", "payload/src"):
             info = tarfile.TarInfo(name)
             info.type = tarfile.DIRTYPE
             info.mode = 0o755
@@ -288,6 +294,11 @@ def build_sizer_root_symlink_archive() -> bytes:
         info.size = len(loader)
         info.mode = 0o644
         tar.addfile(info, BytesIO(loader))
+        sentinel = b"# sizer os sentinel\n"
+        info = tarfile.TarInfo("payload/src/sizer_os.tcl")
+        info.size = len(sentinel)
+        info.mode = 0o644
+        tar.addfile(info, BytesIO(sentinel))
         root = tarfile.TarInfo(top)
         root.type = tarfile.SYMTYPE
         root.linkname = "payload"

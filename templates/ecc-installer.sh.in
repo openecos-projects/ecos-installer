@@ -820,7 +820,7 @@ validate_sizer_dir() {
             return 1
         fi
     done
-    for _path in "$_dir/bin/Sizer" "$_dir/libexec/Sizer" "$_dir/lib/ld-linux-x86-64.so.2"; do
+    for _path in "$_dir/bin/Sizer" "$_dir/libexec/Sizer" "$_dir/lib/ld-linux-x86-64.so.2" "$_dir/src/sizer_os.tcl"; do
         if [ ! -f "$_path" ] || [ -L "$_path" ]; then
             return 1
         fi
