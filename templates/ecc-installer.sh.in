@@ -1034,16 +1034,19 @@ select_existing_toolchain() {
     if [ -d "$_oss" ] && [ -d "$_pdk" ] && [ -d "$_sizer" ] && validate_oss_dir "$_oss" && validate_pdk_dir "$_pdk" && validate_sizer_dir "$_sizer"; then
         OSS_ROOT="$_oss"
         PDK_ROOT="$_pdk"
+        SIZER_ROOT="$_sizer"
         return 0
     fi
     OSS_ROOT=""
     PDK_ROOT=""
+    SIZER_ROOT=""
     return 1
 }
 
 write_wrapper() {
     local _oss_root="$1"
     local _pdk_root="$2"
+    local _sizer_root="$3"
     local _tmp
     local _dest="${BIN_DIR}/ecc"
     _tmp="$(mktemp "${BIN_DIR}/ecc.XXXXXX")"
@@ -1055,6 +1058,10 @@ write_wrapper() {
         if [ -n "$_oss_root" ] && [ -n "$_pdk_root" ]; then
             printf 'export CHIPCOMPILER_OSS_CAD_DIR=%s\n' "$(shell_quote "$_oss_root")"
             printf 'export CHIPCOMPILER_ICS55_PDK_ROOT=%s\n' "$(shell_quote "$_pdk_root")"
+        fi
+        if [ -n "$_sizer_root" ]; then
+            printf 'export CHIPCOMPILER_ECC_SIZER_ROOT=%s\n' "$(shell_quote "$_sizer_root")"
+            printf 'export PATH=%s:"$PATH"\n' "$(shell_quote "${_sizer_root}/bin")"
         fi
         printf '%s\n' 'exec "$ECC_DATA_ROOT/$ECC_VERSION/ecc" "$@"'
     } > "$_tmp"
@@ -1134,11 +1141,12 @@ main() {
 
     OSS_ROOT=""
     PDK_ROOT=""
+    SIZER_ROOT=""
     if [ "$WITH_TOOLCHAIN" = 1 ]; then
         OSS_ROOT="$(install_oss_cad "$OSS_ARCHIVE")"
         PDK_ROOT="$(install_pdk "$PDK_ARCHIVE")"
-        install_sizer "$SIZER_ARCHIVE"
-        if [ -z "$OSS_ROOT" ] || [ -z "$PDK_ROOT" ]; then
+        SIZER_ROOT="$(install_sizer "$SIZER_ARCHIVE")"
+        if [ -z "$OSS_ROOT" ] || [ -z "$PDK_ROOT" ] || [ -z "$SIZER_ROOT" ]; then
             err "toolchain installation failed"
         fi
     elif select_existing_toolchain; then
@@ -1147,7 +1155,7 @@ main() {
         say "ECC was installed without the managed toolchain"
     fi
 
-    write_wrapper "$OSS_ROOT" "$PDK_ROOT"
+    write_wrapper "$OSS_ROOT" "$PDK_ROOT" "$SIZER_ROOT"
     write_receipt
     say "installed ECC ${ECC_VERSION} to ${DATA_ROOT}/${ECC_TAG}"
     print_path_guidance

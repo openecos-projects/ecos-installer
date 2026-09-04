@@ -85,7 +85,6 @@ PLACEHOLDERS = (
     "SIZER_VERSION",
     "SIZER_ASSET_NAME",
     "SIZER_SHA256",
-    "SIZER_SIZE",
     "SIZER_URL",
     "SIZER_CNB_URL",
     "SIZER_CNB_SHA256",
@@ -144,6 +143,7 @@ fi
 if [ "$1" = "dump-env" ]; then
   printf 'OSS=%s\\n' "${{CHIPCOMPILER_OSS_CAD_DIR-}}"
   printf 'PDK=%s\\n' "${{CHIPCOMPILER_ICS55_PDK_ROOT-}}"
+  printf 'SIZER_ROOT=%s\\n' "${{CHIPCOMPILER_ECC_SIZER_ROOT-}}"
   printf 'PATH=%s\\n' "$PATH"
   printf 'YOSYS_PLUGINPATH=%s\\n' "${{YOSYS_PLUGINPATH-}}"
   printf 'YOSYS_DATDIR=%s\\n' "${{YOSYS_DATDIR-}}"
@@ -442,7 +442,6 @@ def render_installer(
         "SIZER_VERSION": SIZER_VERSION,
         "SIZER_ASSET_NAME": sizer.name,
         "SIZER_SHA256": sizer.sha256,
-        "SIZER_SIZE": str(len(sizer.data)),
         "SIZER_URL": f"{base}/github/{sizer.name}",
         "SIZER_CNB_URL": f"{base}/cnb/{sizer.name}",
         "SIZER_CNB_SHA256": "",
@@ -618,8 +617,16 @@ def test_github_success(h: Harness) -> None:
     if wrapper.read_text().splitlines()[:2] != ["#!/bin/sh", "# ecos-release-wrapper-v1"]:
         fail("wrapper marker missing")
     dumped = read_wrapper_env(wrapper, env)
-    if dumped["OSS"] or dumped["PDK"] or dumped["YOSYS_PLUGINPATH"] or dumped["YOSYS_DATDIR"]:
+    if (
+        dumped["OSS"]
+        or dumped["PDK"]
+        or dumped["SIZER_ROOT"]
+        or dumped["YOSYS_PLUGINPATH"]
+        or dumped["YOSYS_DATDIR"]
+    ):
         fail(f"ecc-only install leaked toolchain env: {dumped}")
+    if str(data / "tools" / "ecc-sizer" / SIZER_VERSION / "bin") in dumped["PATH"].split(":"):
+        fail("ecc-only install leaked sizer bin onto PATH")
     receipt = json.loads((config / "ecc-receipt.json").read_text())
     if receipt["binaries"] != ["ecc"] or receipt["version"] != "0.1.0-alpha.11":
         fail(receipt)
@@ -759,10 +766,12 @@ def test_toolchain_wrapper(h: Harness) -> None:
     oss = data / "tools" / "oss-cad-suite" / "20260827"
     pdk = data / "pdks" / "icsprout55" / "v1.10.102"
     sizer = data / "tools" / "ecc-sizer" / SIZER_VERSION
-    if dumped["OSS"] != str(oss) or dumped["PDK"] != str(pdk):
+    if dumped["OSS"] != str(oss) or dumped["PDK"] != str(pdk) or dumped["SIZER_ROOT"] != str(sizer):
         fail(dumped)
     if str(oss / "bin") in dumped["PATH"].split(":"):
         fail("oss bin leaked onto PATH")
+    if str(sizer / "bin") not in dumped["PATH"].split(":"):
+        fail("sizer bin missing from wrapper PATH; ECC cannot discover Sizer")
     if dumped["YOSYS_PLUGINPATH"] or dumped["YOSYS_DATDIR"]:
         fail(dumped)
     if not (oss / "bin" / "yosys").is_file():
@@ -790,6 +799,10 @@ def test_ecc_only_upgrade_preserves_toolchain(h: Harness) -> None:
     dumped = read_wrapper_env(bindir / "ecc", env)
     if not dumped["OSS"].endswith("/tools/oss-cad-suite/20260827"):
         fail(dumped)
+    if not dumped["SIZER_ROOT"].endswith(f"/tools/ecc-sizer/{SIZER_VERSION}"):
+        fail(dumped)
+    if f"/tools/ecc-sizer/{SIZER_VERSION}/bin" not in dumped["PATH"]:
+        fail("sizer bin missing from wrapper PATH after ecc-only upgrade")
     if not (data / "v0.1.0-alpha.11").is_dir() or not (data / "v0.1.0-alpha.12").is_dir():
         fail("version dirs missing")
     if not (data / "tools" / "ecc-sizer" / SIZER_VERSION / "bin" / "Sizer").is_file():
@@ -1144,8 +1157,10 @@ def test_missing_sizer_blocks_toolchain_export(h: Harness) -> None:
     if "without the managed toolchain" not in result.stderr:
         fail(result.stderr)
     dumped = read_wrapper_env(bindir / "ecc", env)
-    if dumped["OSS"] or dumped["PDK"]:
+    if dumped["OSS"] or dumped["PDK"] or dumped["SIZER_ROOT"]:
         fail(f"incomplete toolchain exported: {dumped}")
+    if f"/tools/ecc-sizer/{SIZER_VERSION}/bin" in dumped["PATH"]:
+        fail("sizer bin exported onto PATH with incomplete toolchain")
 
 
 def test_conflicting_flags(h: Harness) -> None:
