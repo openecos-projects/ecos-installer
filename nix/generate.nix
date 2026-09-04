@@ -24,7 +24,6 @@ let
     "SIZER_VERSION"
     "SIZER_ASSET_NAME"
     "SIZER_SHA256"
-    "SIZER_SIZE"
     "SIZER_URL"
     "SIZER_CNB_URL"
     "SIZER_CNB_SHA256"
@@ -71,7 +70,6 @@ let
     SIZER_VERSION = model.sizer.version;
     SIZER_ASSET_NAME = model.sizer.name;
     SIZER_SHA256 = model.sizer.sha256;
-    SIZER_SIZE = if model.sizer.size == null then "" else toString model.sizer.size;
     SIZER_URL = model.sizer.url;
     SIZER_CNB_URL = model.sizer.cnbUrl;
     SIZER_CNB_SHA256 = model.sizer.cnbSha256;

@@ -57,6 +57,27 @@ let
       }
     );
   });
+  badSizerVersion = builtins.tryEval (
+    loadModel (
+      toolchain
+      // {
+        sizer = toolchain.sizer // {
+          version = "../evil";
+          asset_name = "ecc-sizer-../evil-linux-x64.tar.gz";
+        };
+      }
+    )
+  );
+  badEccVersion = builtins.tryEval (
+    loadModel (
+      toolchain
+      // {
+        ecc = toolchain.ecc // {
+          version = "1..0";
+        };
+      }
+    )
+  );
   badSizerCnbSha = builtins.tryEval (
     loadModel (
       toolchain
@@ -99,6 +120,8 @@ pkgs.runCommand "ecos-release-generate-check" { } ''
   ${lib.optionalString badLiberty.success "echo 'empty liberty_files should fail' >&2; exit 1"}
   ${lib.optionalString badSizerName.success "echo 'sizer asset name mismatch should fail' >&2; exit 1"}
   ${lib.optionalString badSizerSha.success "echo 'bad sizer sha256 should fail' >&2; exit 1"}
+  ${lib.optionalString badSizerVersion.success "echo 'non-SemVer sizer version should fail' >&2; exit 1"}
+  ${lib.optionalString badEccVersion.success "echo 'non-SemVer ecc version should fail' >&2; exit 1"}
   ${lib.optionalString badSizerCnbSha.success "echo 'bad sizer cnb sha256 should fail' >&2; exit 1"}
   ${lib.optionalString orphanSizerCnbSha.success "echo 'sizer cnb_sha256 without cnb_url should fail' >&2; exit 1"}
   ${lib.optionalString (!(lib.hasPrefix "#!/bin/sh\n" text)) "echo 'missing shebang' >&2; exit 1"}

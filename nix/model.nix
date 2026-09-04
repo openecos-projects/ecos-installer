@@ -51,6 +51,7 @@ let
   parsed = parse version;
   tag = "v${version}";
   _ = parseTag tag;
+  sizerParsed = parse (sizer.version or "");
 
   libertyNames = [
     "ics55_LLSC_H7CH_liberty.tar.bz2"
@@ -157,4 +158,6 @@ else if !(builtins.all (n: builtins.any (a: a.name == n) model.pdk.assets) liber
 else if builtins.length model.pdk.cellLefs < 2 then
   throwUn "PDK standard-cell LEF list is incomplete"
 else
-  model
+  # Force the SemVer parses so a malformed pinned version fails at
+  # nix build / flake check time instead of reaching the installer.
+  builtins.deepSeq [ parsed _ sizerParsed ] model
