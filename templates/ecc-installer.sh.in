@@ -812,6 +812,14 @@ validate_sizer_dir() {
     local _dir="$1"
     local _out
     local _path
+    if [ ! -d "$_dir" ] || [ -L "$_dir" ]; then
+        return 1
+    fi
+    for _path in "$_dir/bin" "$_dir/libexec" "$_dir/lib"; do
+        if [ ! -d "$_path" ] || [ -L "$_path" ]; then
+            return 1
+        fi
+    done
     for _path in "$_dir/bin/Sizer" "$_dir/libexec/Sizer" "$_dir/lib/ld-linux-x86-64.so.2"; do
         if [ ! -f "$_path" ] || [ -L "$_path" ]; then
             return 1

@@ -233,7 +233,10 @@ def build_sizer_archive(*, version: str = SIZER_VERSION) -> bytes:
 
 
 def build_sizer_symlink_archive() -> bytes:
+    # bin/Sizer symlinks to an executable that emits the correct banner, so
+    # only the symlink rejection (not the version smoke test) can fail it.
     top = f"ecc-sizer-{SIZER_VERSION}"
+    script = sizer_script()
     buffer = BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
         for name in (f"{top}/bin", f"{top}/lib", f"{top}/libexec"):
@@ -241,11 +244,10 @@ def build_sizer_symlink_archive() -> bytes:
             info.type = tarfile.DIRTYPE
             info.mode = 0o755
             tar.addfile(info)
-        payload = b"ELF-sizer-payload\n"
         info = tarfile.TarInfo(f"{top}/libexec/Sizer")
-        info.size = len(payload)
+        info.size = len(script)
         info.mode = 0o755
-        tar.addfile(info, BytesIO(payload))
+        tar.addfile(info, BytesIO(script))
         loader = b"ELF-loader\n"
         info = tarfile.TarInfo(f"{top}/lib/ld-linux-x86-64.so.2")
         info.size = len(loader)
@@ -256,6 +258,41 @@ def build_sizer_symlink_archive() -> bytes:
         link.linkname = "../libexec/Sizer"
         link.mode = 0o755
         tar.addfile(link)
+    return buffer.getvalue()
+
+
+def build_sizer_root_symlink_archive() -> bytes:
+    # The top-level ecc-sizer-<version> entry is a symlink to payload/, so a
+    # root found by following it validates but promote_dir would move only
+    # the link and leave a dangling destination behind.
+    top = f"ecc-sizer-{SIZER_VERSION}"
+    script = sizer_script()
+    buffer = BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+        for name in ("payload/bin", "payload/lib", "payload/libexec"):
+            info = tarfile.TarInfo(name)
+            info.type = tarfile.DIRTYPE
+            info.mode = 0o755
+            tar.addfile(info)
+        info = tarfile.TarInfo("payload/bin/Sizer")
+        info.size = len(script)
+        info.mode = 0o755
+        tar.addfile(info, BytesIO(script))
+        payload = b"ELF-sizer-payload\n"
+        info = tarfile.TarInfo("payload/libexec/Sizer")
+        info.size = len(payload)
+        info.mode = 0o755
+        tar.addfile(info, BytesIO(payload))
+        loader = b"ELF-loader\n"
+        info = tarfile.TarInfo("payload/lib/ld-linux-x86-64.so.2")
+        info.size = len(loader)
+        info.mode = 0o644
+        tar.addfile(info, BytesIO(loader))
+        root = tarfile.TarInfo(top)
+        root.type = tarfile.SYMTYPE
+        root.linkname = "payload"
+        root.mode = 0o755
+        tar.addfile(root)
     return buffer.getvalue()
 
 
@@ -1027,7 +1064,9 @@ def test_sizer_bad_layout(h: Harness) -> None:
 def test_sizer_wrong_version_banner(h: Harness) -> None:
     root = h.tmp()
     env = xdg_env(root)
-    bad = build_sizer_archive(version="9.9.9-mismatch")
+    # 0.1.0-alpha.1 satisfies an unanchored "v0.1.0-alpha" substring match,
+    # so this pins the exact-token comparison.
+    bad = build_sizer_archive(version="0.1.0-alpha.1")
     saved_github = h.routes[f"/github/{SIZER_ASSET}"]
     try:
         h.routes[f"/github/{SIZER_ASSET}"] = {"data": bad}
@@ -1062,6 +1101,27 @@ def test_sizer_symlink_rejected(h: Harness) -> None:
         data = Path(env["XDG_DATA_HOME"]) / "ecc"
         if (data / "tools" / "ecc-sizer" / SIZER_VERSION).exists():
             fail("partial sizer install survived symlink rejection")
+    finally:
+        h.routes[f"/github/{SIZER_ASSET}"] = saved_github
+
+
+def test_sizer_root_symlink_rejected(h: Harness) -> None:
+    root = h.tmp()
+    env = xdg_env(root)
+    bad = build_sizer_root_symlink_archive()
+    saved_github = h.routes[f"/github/{SIZER_ASSET}"]
+    try:
+        h.routes[f"/github/{SIZER_ASSET}"] = {"data": bad}
+        mutated = dict(h.assets)
+        mutated[SIZER_ASSET] = PackedAsset(SIZER_ASSET, bad, sha256_bytes(bad))
+        result = run_installer(
+            h.installer(root / "installer.sh", assets=mutated), env, "--with-toolchain"
+        )
+        if result.returncode == 0 or "ecc-sizer validation failed" not in result.stderr:
+            fail(result.stderr)
+        dest = Path(env["XDG_DATA_HOME"]) / "ecc" / "tools" / "ecc-sizer" / SIZER_VERSION
+        if dest.exists() or dest.is_symlink():
+            fail("dangling sizer destination survived root symlink rejection")
     finally:
         h.routes[f"/github/{SIZER_ASSET}"] = saved_github
 
@@ -1215,6 +1275,7 @@ CASES = [
     test_sizer_bad_layout,
     test_sizer_wrong_version_banner,
     test_sizer_symlink_rejected,
+    test_sizer_root_symlink_rejected,
     test_missing_sizer_blocks_toolchain_export,
     test_conflicting_flags,
     test_cnb_mode_toolchain,
