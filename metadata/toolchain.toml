@@ -53,7 +53,7 @@ name = "ics55_LLSC_H7CH_liberty.tar.bz2"
 sha256 = "bb79e74960dec7032295e621933410f51963b9cafbd956a196148d44fe27fb2c"
 url = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CH_liberty.tar.bz2"
 cnb_url = "https://cnb.cool/ecoslab/icsprout55-pdk/-/releases/download/v1.10.102/ics55_LLSC_H7CH_liberty.tar.bz2"
-dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CH/liberty"
+dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CH"
 size = 76358374
 kind = "liberty"
 
@@ -62,7 +62,7 @@ name = "ics55_LLSC_H7CL_liberty.tar.bz2"
 sha256 = "c2e7a1eea77772582414108fce178a0f444a61bd4e3ce0a2811ef27caa719fa8"
 url = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CL_liberty.tar.bz2"
 cnb_url = "https://cnb.cool/ecoslab/icsprout55-pdk/-/releases/download/v1.10.102/ics55_LLSC_H7CL_liberty.tar.bz2"
-dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty"
+dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL"
 size = 77546993
 kind = "liberty"
 
@@ -71,7 +71,7 @@ name = "ics55_LLSC_H7CR_liberty.tar.bz2"
 sha256 = "ef33eec4cd5f617d3dd0073122e556df06560dd65eebf805648640038dedc2b7"
 url = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CR_liberty.tar.bz2"
 cnb_url = "https://cnb.cool/ecoslab/icsprout55-pdk/-/releases/download/v1.10.102/ics55_LLSC_H7CR_liberty.tar.bz2"
-dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty"
+dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR"
 size = 76996026
 kind = "liberty"
 
@@ -80,7 +80,7 @@ name = "ics55_LLSC_H7CH_gds.tar.bz2"
 sha256 = "6268684fdd0784087adc1a972125f9001bc9761c3142ab954d2a9eade53d5490"
 url = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CH_gds.tar.bz2"
 cnb_url = "https://cnb.cool/ecoslab/icsprout55-pdk/-/releases/download/v1.10.102/ics55_LLSC_H7CH_gds.tar.bz2"
-dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CH/gds"
+dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CH"
 size = 1502685
 kind = "gds"
 
@@ -89,7 +89,7 @@ name = "ics55_LLSC_H7CL_gds.tar.bz2"
 sha256 = "9a643ae864d178f45fec4aa59dc98f0420894760d8a431ce0fd640b97e1c2f68"
 url = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CL_gds.tar.bz2"
 cnb_url = "https://cnb.cool/ecoslab/icsprout55-pdk/-/releases/download/v1.10.102/ics55_LLSC_H7CL_gds.tar.bz2"
-dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/gds"
+dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL"
 size = 1512316
 kind = "gds"
 
@@ -98,7 +98,7 @@ name = "ics55_LLSC_H7CR_gds.tar.bz2"
 sha256 = "525a7a486e15e36888e4ce08887c946cd16c60dc2c90819fb493d865ed38cc2b"
 url = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CR_gds.tar.bz2"
 cnb_url = "https://cnb.cool/ecoslab/icsprout55-pdk/-/releases/download/v1.10.102/ics55_LLSC_H7CR_gds.tar.bz2"
-dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/gds"
+dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR"
 size = 1489081
 kind = "gds"
 
@@ -107,6 +107,6 @@ name = "ICsprout_55LLULP1233_IO_251013_gds.tar.bz2"
 sha256 = "47d248be322a6f054a0ab11fe2f2ee83ad76f9ce15d6f4cd53a81c8d08c7693b"
 url = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ICsprout_55LLULP1233_IO_251013_gds.tar.bz2"
 cnb_url = "https://cnb.cool/ecoslab/icsprout55-pdk/-/releases/download/v1.10.102/ICsprout_55LLULP1233_IO_251013_gds.tar.bz2"
-dest = "IP/IO/ICsprout_55LLULP1233_IO_251013/gds"
+dest = "IP/IO/ICsprout_55LLULP1233_IO_251013"
 size = 7728902
 kind = "gds"

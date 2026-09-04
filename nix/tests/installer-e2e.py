@@ -31,39 +31,39 @@ SIZER_ASSET = f"ecc-sizer-{SIZER_VERSION}-linux-x64.tar.gz"
 LIBERTY_SPECS = (
     (
         "ics55_LLSC_H7CH_liberty.tar.bz2",
-        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CH/liberty",
+        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CH",
         "h7ch.lib",
     ),
     (
         "ics55_LLSC_H7CL_liberty.tar.bz2",
-        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/liberty",
+        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL",
         "h7cl.lib",
     ),
     (
         "ics55_LLSC_H7CR_liberty.tar.bz2",
-        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/liberty",
+        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR",
         "h7cr.lib",
     ),
 )
 GDS_SPECS = (
     (
         "ics55_LLSC_H7CH_gds.tar.bz2",
-        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CH/gds",
+        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CH",
         "h7ch.gds",
     ),
     (
         "ics55_LLSC_H7CL_gds.tar.bz2",
-        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL/gds",
+        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CL",
         "h7cl.gds",
     ),
     (
         "ics55_LLSC_H7CR_gds.tar.bz2",
-        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR/gds",
+        "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CR",
         "h7cr.gds",
     ),
     (
         "ICsprout_55LLULP1233_IO_251013_gds.tar.bz2",
-        "IP/IO/ICsprout_55LLULP1233_IO_251013/gds",
+        "IP/IO/ICsprout_55LLULP1233_IO_251013",
         "io.gds",
     ),
 )
@@ -303,8 +303,11 @@ def build_pdk_base_archive() -> bytes:
     return pack_tar(members, compression="gz")
 
 
-def build_named_bz2(dest_file: str) -> bytes:
-    return pack_tar({dest_file: b"contents of %s\n" % dest_file.encode()}, compression="bz2")
+def build_named_bz2(kind: str, filename: str) -> bytes:
+    # Real supplemental archives carry a top-level liberty/ or gds/ directory,
+    # so the installer extracts them beside the cell or IO parent directory.
+    member = f"{kind}/{filename}"
+    return pack_tar({member: b"contents of %s\n" % member.encode()}, compression="bz2")
 
 
 def build_release_assets(*, version: str = "0.1.0-alpha.11") -> dict[str, PackedAsset]:
@@ -324,16 +327,16 @@ def build_release_assets(*, version: str = "0.1.0-alpha.11") -> dict[str, Packed
         "icsprout55-pdk-v1.10.102.tar.gz", pdk_base, sha256_bytes(pdk_base)
     )
     for name, dest, filename in LIBERTY_SPECS:
-        data = build_named_bz2(filename)
+        data = build_named_bz2("liberty", filename)
         assets[name] = PackedAsset(name, data, sha256_bytes(data), dest=dest, kind="liberty")
     for name, dest, filename in GDS_SPECS:
-        data = build_named_bz2(filename)
+        data = build_named_bz2("gds", filename)
         assets[name] = PackedAsset(name, data, sha256_bytes(data), dest=dest, kind="gds")
     return assets
 
 
 def liberty_paths() -> tuple[str, ...]:
-    return tuple(f"{dest}/{filename}" for _, dest, filename in LIBERTY_SPECS)
+    return tuple(f"{dest}/liberty/{filename}" for _, dest, filename in LIBERTY_SPECS)
 
 
 class AssetServer(ThreadingHTTPServer):
