@@ -16,7 +16,7 @@ With OSS CAD Suite, the ICS55 PDK, and ecc-sizer:
 curl -fsSL https://release.openecos.com/installers/ecc/latest/ecc-installer.sh | sh -s -- --with-toolchain
 ```
 
-`--download-source auto|github|cnb` selects the mirror (`auto` tries GitHub, then CNB). The PDK base archive is GitHub-only, and ecc-sizer has no CNB mirror yet, so it always downloads from GitHub.
+`--download-source auto|github|cnb` selects the mirror (`auto` tries GitHub, then CNB). The PDK base archive is GitHub-only.
 
 If GitHub is unreachable, set a prefix that replaces `https://github.com`:
 
@@ -40,7 +40,7 @@ nix run .#update-ecc -- v<tag>   # prefetch the ECC GitHub asset and update the 
 nix run .#publish-oss -- v<tag>  # PUT the immutable versioned object; advance latest by SemVer 2.0.0
 ```
 
-`update-ecc` only rewrites ECC pins. Bump OSS CAD Suite, ecc-sizer, or the PDK by editing the TOML; for ecc-sizer keep `asset_name` in sync with `version` (`ecc-sizer-<version>-linux-x64.tar.gz`) and fill `cnb_url` plus `cnb_sha256` once a CNB mirror exists.
+`update-ecc` only rewrites ECC pins. Bump OSS CAD Suite, ecc-sizer, or the PDK by editing the TOML; for ecc-sizer keep `asset_name` in sync with `version` (`ecc-sizer-<version>-linux-x64.tar.gz`), advance the tag in `cnb_url`, and set `cnb_sha256` only if the mirror bytes differ from GitHub's.
 
 Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET`. A versioned object cannot be overwritten with different bytes. `latest` never moves to an older SemVer.
 

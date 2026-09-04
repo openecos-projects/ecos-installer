@@ -136,10 +136,8 @@ else if model.sizer.name != "ecc-sizer-${model.sizer.version}-linux-x64.tar.gz" 
   throwUn "ecc-sizer asset must be named ecc-sizer-${model.sizer.version}-linux-x64.tar.gz"
 else if model.sizer.url == "" then
   throwUn "missing ecc-sizer url"
-else if
-  model.sizer.cnbUrl != "" && (builtins.match "[0-9a-f]{64}" model.sizer.cnbSha256 == null)
-then
-  throwUn "sizer cnb_url requires cnb_sha256"
+else if model.sizer.cnbSha256 != "" && !(hexSha model.sizer.cnbSha256) then
+  throwUn "invalid SHA-256 for sizer cnb mirror: ${model.sizer.cnbSha256}"
 else if model.sizer.cnbUrl == "" && model.sizer.cnbSha256 != "" then
   throwUn "sizer cnb_sha256 set without cnb_url"
 else if model.pdk.version == "" then

@@ -444,7 +444,7 @@ def render_installer(
         "SIZER_SHA256": sizer.sha256,
         "SIZER_SIZE": str(len(sizer.data)),
         "SIZER_URL": f"{base}/github/{sizer.name}",
-        "SIZER_CNB_URL": "",
+        "SIZER_CNB_URL": f"{base}/cnb/{sizer.name}",
         "SIZER_CNB_SHA256": "",
         "PDK_NAME": "icsprout55",
         "PDK_VERSION": "v1.10.102",
@@ -1165,8 +1165,6 @@ def test_cnb_mode_toolchain(h: Harness) -> None:
     saved = dict(h.routes)
     try:
         for name in h.assets:
-            if name == SIZER_ASSET:
-                continue
             h.routes[f"/github/{name}"] = {"status": 404}
         root = h.tmp()
         env = xdg_env(root)
@@ -1179,10 +1177,8 @@ def test_cnb_mode_toolchain(h: Harness) -> None:
         )
         if result.returncode != 0:
             fail(result.stderr)
-        if "no CNB mirror" in result.stderr:
+        if "no CNB URL" in result.stderr:
             fail(result.stderr)
-        if f"no CNB URL for {SIZER_ASSET}" not in result.stderr:
-            fail("expected sizer to fall back to GitHub in cnb mode")
         data = Path(env["XDG_DATA_HOME"]) / "ecc"
         if not (data / "tools" / "oss-cad-suite" / "20260827" / "bin" / "yosys").is_file():
             fail("cnb toolchain missing yosys")
@@ -1198,6 +1194,7 @@ def test_toolchain_github_fallback(h: Harness) -> None:
     try:
         h.routes["/github/oss-cad-suite-linux-x64-20260827.tgz"] = {"status": 500}
         h.routes["/github/icsprout55-pdk-v1.10.102.tar.gz"] = {"status": 500}
+        h.routes[f"/github/{SIZER_ASSET}"] = {"status": 500}
         for spec in (*LIBERTY_SPECS, *GDS_SPECS):
             h.routes[f"/github/{spec[0]}"] = {"status": 500}
         root = h.tmp()

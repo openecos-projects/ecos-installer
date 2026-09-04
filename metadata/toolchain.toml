@@ -26,6 +26,7 @@ github_repo = "openecos-projects/ecc-sizer"
 asset_name = "ecc-sizer-0.1.0-alpha-linux-x64.tar.gz"
 version = "0.1.0-alpha"
 url = "https://github.com/openecos-projects/ecc-sizer/releases/download/v0.1.0-alpha/ecc-sizer-0.1.0-alpha-linux-x64.tar.gz"
+cnb_url = "https://cnb.cool/ecoslab/ecc-sizer/-/releases/download/v0.1.0-alpha/ecc-sizer-0.1.0-alpha-linux-x64.tar.gz"
 sha256 = "d33a2167600711f35fb1dcef55983b0d669176988d8722ed8b22c03471dafee7"
 size = 85803792
 
