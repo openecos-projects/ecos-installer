@@ -44,19 +44,6 @@ nix run .#publish-oss -- v<tag>  # PUT the immutable versioned object; advance l
 
 Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET`. A versioned object cannot be overwritten with different bytes. `latest` never moves to an older SemVer.
 
-## Google Analytics
-
-`curl | sh` does not run JavaScript, so a page tag cannot see downloads. `release.openecos.com/installers/*` is a Cloudflare Worker that proxies OSS and sends a GA4 Measurement Protocol `file_download` event.
-
-Create a GA4 property, enable Measurement Protocol, then:
-
-```sh
-# put the G- id in cloudflare/wrangler.toml [vars].GA_MEASUREMENT_ID
-nix shell nixpkgs#wrangler -c wrangler secret put GA_API_SECRET --config cloudflare/wrangler.toml
-nix shell nixpkgs#wrangler -c wrangler deploy --config cloudflare/wrangler.toml
-```
-
-The worker hashes `CF-Connecting-IP` + `User-Agent` into `client_id`. It does not send the raw IP to Google. Look at event count, not Active Users.
 
 ## `nix flake check`
 
