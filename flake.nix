@@ -52,7 +52,7 @@
             --arg pkgsPath ${pkgs.path} \
             --argstr currentFile "$current" \
             --argstr candidateFile "$candidate" \
-            ${./nix/decide-cli.nix} | tr -d '"\n '
+            ${./nix}/decide-cli.nix | tr -d '"\n '
         '';
       };
 
