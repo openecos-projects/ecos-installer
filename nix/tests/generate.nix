@@ -100,7 +100,7 @@ let
     )
   );
 
-  older = builtins.replaceStrings [ "0.1.0-alpha.11" ] [ "0.1.0-alpha.10" ] text;
+  older = builtins.replaceStrings [ "0.1.0-alpha.12" ] [ "0.1.0-alpha.11" ] text;
   malformed = "not an installer\n";
   sameVerDiff = builtins.replaceStrings [ "MIN_GLIBC_MAJOR=\"2\"" ] [ "MIN_GLIBC_MAJOR=\"9\"" ] text;
   rejectDiff = builtins.tryEval (
@@ -127,7 +127,7 @@ pkgs.runCommand "ecos-release-generate-check" { } ''
   ${lib.optionalString (!(lib.hasPrefix "#!/bin/sh\n" text)) "echo 'missing shebang' >&2; exit 1"}
   ${lib.optionalString (lib.hasInfix "@ECC_VERSION@" text) "echo 'unsubstituted placeholder' >&2; exit 1"}
   ${lib.optionalString (
-    !(lib.hasInfix ''ECC_VERSION="0.1.0-alpha.11"'' text)
+    !(lib.hasInfix ''ECC_VERSION="0.1.0-alpha.12"'' text)
   ) "echo 'missing version' >&2; exit 1"}
   ${lib.optionalString (
     !(lib.hasInfix model.ecc.cnbUrl text)
@@ -136,7 +136,7 @@ pkgs.runCommand "ecos-release-generate-check" { } ''
     !(lib.hasInfix model.ossCadSuite.cnbUrl text)
   ) "echo 'missing OSS cnb_url' >&2; exit 1"}
   ${lib.optionalString (
-    !(lib.hasInfix ''SIZER_VERSION="0.1.0-alpha"'' text)
+    !(lib.hasInfix ''SIZER_VERSION="0.1.0-alpha.1"'' text)
   ) "echo 'missing sizer version' >&2; exit 1"}
   ${lib.optionalString (!(lib.hasInfix model.sizer.url text)) "echo 'missing sizer url' >&2; exit 1"}
   ${lib.optionalString (

@@ -6,12 +6,12 @@ min_glibc = "2.34"
 [ecc]
 github_repo = "openecos-projects/ecc"
 asset_name = "ecc-cli-linux-x86_64.tar.gz"
-version = "0.1.0-alpha.11"
-url = "https://github.com/openecos-projects/ecc/releases/download/v0.1.0-alpha.11/ecc-cli-linux-x86_64.tar.gz"
+version = "0.1.0-alpha.12"
+url = "https://github.com/openecos-projects/ecc/releases/download/v0.1.0-alpha.12/ecc-cli-linux-x86_64.tar.gz"
 cnb_url_template = "https://cnb.cool/ecoslab/ecc/-/releases/download/{tag}/{name}"
-cnb_url = "https://cnb.cool/ecoslab/ecc/-/releases/download/v0.1.0-alpha.11/ecc-cli-linux-x86_64.tar.gz"
-sha256 = "ef34c53631c902bc6f4a99ec08fcaf2a5815e2d59acb68849ce6895c69e08dba"
-size = 513992667
+cnb_url = "https://cnb.cool/ecoslab/ecc/-/releases/download/v0.1.0-alpha.12/ecc-cli-linux-x86_64.tar.gz"
+sha256 = "fb63d96bf83e999ace04c1d21c2e0767ab5452875651b7ccc5ddb9610c8180aa"
+size = 513976534
 
 [oss_cad_suite]
 version = "20260827"
@@ -23,12 +23,12 @@ size = 740836017
 
 [sizer]
 github_repo = "openecos-projects/ecc-sizer"
-asset_name = "ecc-sizer-0.1.0-alpha-linux-x64.tar.gz"
-version = "0.1.0-alpha"
-url = "https://github.com/openecos-projects/ecc-sizer/releases/download/v0.1.0-alpha/ecc-sizer-0.1.0-alpha-linux-x64.tar.gz"
-cnb_url = "https://cnb.cool/ecoslab/ecc-sizer/-/releases/download/v0.1.0-alpha/ecc-sizer-0.1.0-alpha-linux-x64.tar.gz"
-sha256 = "d33a2167600711f35fb1dcef55983b0d669176988d8722ed8b22c03471dafee7"
-size = 85803792
+asset_name = "ecc-sizer-0.1.0-alpha.1-linux-x64.tar.gz"
+version = "0.1.0-alpha.1"
+url = "https://github.com/openecos-projects/ecc-sizer/releases/download/v0.1.0-alpha.1/ecc-sizer-0.1.0-alpha.1-linux-x64.tar.gz"
+cnb_url = "https://cnb.cool/ecoslab/ecc-sizer/-/releases/download/v0.1.0-alpha.1/ecc-sizer-0.1.0-alpha.1-linux-x64.tar.gz"
+sha256 = "cf4960a7452b7fb69b319ece844a9ef579d564541ce5407917e314c6eaa351af"
+size = 85807140
 
 [pdk]
 name = "icsprout55"
