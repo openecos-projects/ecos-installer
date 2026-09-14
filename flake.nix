@@ -60,16 +60,28 @@
         '';
       };
 
+      eccTomlEdit = pkgs.writeShellApplication {
+        name = "ecc-toml-edit";
+        runtimeInputs = [
+          pkgs.gawk
+          pkgs.gnused
+          pkgs.coreutils
+        ];
+        text = builtins.readFile ./nix/ecc-toml-edit.sh;
+      };
+
       updateEcc = pkgs.writeShellApplication {
         name = "update-ecc";
         runtimeInputs = [
           pkgs.nix
           pkgs.git
-          pkgs.gawk
           pkgs.gnused
           pkgs.coreutils
         ];
-        text = builtins.readFile ./nix/update-ecc.sh;
+        text = ''
+          ECC_TOML_EDIT="${eccTomlEdit}/bin/ecc-toml-edit"
+          ${builtins.readFile ./nix/update-ecc.sh}
+        '';
       };
 
       publishOss = pkgs.writeShellApplication {
@@ -142,6 +154,10 @@
         };
         installer-syntax = installerChecks.syntax;
         installer-e2e = installerChecks.e2e;
+        update-ecc-toml = import ./nix/tests/update-ecc.nix {
+          inherit pkgs;
+          eccTomlEdit = "${eccTomlEdit}/bin/ecc-toml-edit";
+        };
         registry-generate = import ./nix/tests/registry-generate.nix {
           inherit
             lib
