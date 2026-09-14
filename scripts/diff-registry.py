@@ -44,6 +44,11 @@ MUTABLE_PLATFORM_FIELDS = frozenset({"url", "metadata_url"})
 TOOL_META_FIELDS = ("name", "display_name", "description", "category", "homepage")
 
 PDK_BASE_FIELDS = ("url", "sha256", "size", "strip_prefix")
+PDK_ENTITY_FIELDS = frozenset(
+    {"id", "display_name", "description", "category", "homepage", "versions"}
+)
+PDK_VERSION_FIELDS = frozenset({"version", "platforms"})
+PDK_PLATFORM_FIELDS = frozenset({"url", "sha256", "size", "strip_prefix", "packages"})
 PDK_PACKAGE_FIELDS = frozenset({"path", "url", "cnb_url", "sha256", "size", "dest"})
 
 
@@ -122,16 +127,6 @@ def index_by(entries: list, key: str) -> dict[str, dict]:
     return {entry[key]: entry for entry in entries if isinstance(entry, dict) and key in entry}
 
 
-def unchanged_outside(baseline: dict, candidate: dict, allowed: frozenset[str]) -> list[str]:
-    violations = []
-    for field in sorted(set(baseline) | set(candidate)):
-        if field in allowed:
-            continue
-        if baseline.get(field) != candidate.get(field):
-            violations.append(field)
-    return violations
-
-
 def compare_pdks(baseline: dict, candidate: dict, report: list[str], violations: list[str]) -> None:
     baseline_pdks, candidate_pdks = baseline["pdks"], candidate["pdks"]
     if len(baseline_pdks) != len(candidate_pdks):
@@ -139,6 +134,10 @@ def compare_pdks(baseline: dict, candidate: dict, report: list[str], violations:
         return
     for b, c in zip(baseline_pdks, candidate_pdks, strict=True):
         pdk_id = c.get("id", "?")
+        if frozenset(c) != PDK_ENTITY_FIELDS:
+            violations.append(
+                f"pdk {pdk_id}: unexpected entity fields {sorted(set(c) - PDK_ENTITY_FIELDS)}"
+            )
         for field in ("id", "display_name", "description", "category", "homepage"):
             if b.get(field) != c.get(field):
                 violations.append(f"pdk {pdk_id}: {field} changed")
@@ -148,6 +147,10 @@ def compare_pdks(baseline: dict, candidate: dict, report: list[str], violations:
             violations.append(f"pdk {pdk_id}: version count changed")
             continue
         bv, cv = b_versions[0], c_versions[0]
+        if frozenset(cv) != PDK_VERSION_FIELDS:
+            violations.append(
+                f"pdk {pdk_id}: unexpected version fields {sorted(set(cv) - PDK_VERSION_FIELDS)}"
+            )
         if bv.get("version") != cv.get("version"):
             violations.append(f"pdk {pdk_id}: published version changed")
         if "requires" in cv:
@@ -158,6 +161,10 @@ def compare_pdks(baseline: dict, candidate: dict, report: list[str], violations:
             continue
         for platform_key in b_platforms:
             bp, cp = b_platforms[platform_key], c_platforms[platform_key]
+            if frozenset(cp) != PDK_PLATFORM_FIELDS:
+                violations.append(
+                    f"pdk {pdk_id}: unexpected platform fields {sorted(set(cp) - PDK_PLATFORM_FIELDS)}"
+                )
             for field in PDK_BASE_FIELDS:
                 if bp.get(field) != cp.get(field):
                     violations.append(f"pdk {pdk_id}: base {field} changed")

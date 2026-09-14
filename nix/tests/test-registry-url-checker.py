@@ -22,7 +22,7 @@ import unittest
 
 
 def load_checker():
-    default = Path(__file__).resolve().parents[1] / "nix" / "registry-url-checker.py"
+    default = Path(__file__).resolve().parents[1] / "registry-url-checker.py"
     module_path = Path(os.environ.get("REGISTRY_URL_CHECKER", default))
     spec = importlib.util.spec_from_file_location("registry_url_checker", module_path)
     assert spec is not None

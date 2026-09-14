@@ -536,10 +536,10 @@ let
         in
         if u == "" then
           ""
-        else if lib.hasSuffix ".json" u then
+        else if lib.hasSuffix ".metadata.json" u then
           requireHttpsUrl "${key}.metadata_url" u
         else
-          throwUn "${key}.metadata_url must point at a .json sidecar: ${u}";
+          throwUn "${key}.metadata_url must point at a .metadata.json sidecar: ${u}";
       latestCheck =
         if toolVersion != "latest" then
           null
@@ -550,6 +550,17 @@ let
             null
         else
           throwUn "${key} still pins a mutable -latest release; publish an immutable versioned release and update the pin";
+      versionedCheck =
+        let
+          mutableUrl = builtins.match ".*-latest.*" (section.url or "") != null;
+          mutableMetadata = builtins.match ".*-latest.*" (section.metadata_url or "") != null;
+        in
+        if toolVersion == "latest" then
+          null
+        else if mutableUrl || mutableMetadata then
+          throwUn "${key} pins an immutable version but its url or metadata_url still references a -latest release"
+        else
+          null;
     in
     {
       name =
@@ -575,7 +586,7 @@ let
       rawRequires = requireStringList "${key}.requires" (section.requires or [ ]);
     }
     // {
-      inherit latestCheck;
+      inherit latestCheck versionedCheck;
     };
 
   toolModels = map parseTool toolSections;
@@ -761,7 +772,8 @@ let
   ]
   ++ orderedPkgsCheck
   ++ destKindCheck
-  ++ map (t: t.latestCheck) toolModels;
+  ++ map (t: t.latestCheck) toolModels
+  ++ map (t: t.versionedCheck) toolModels;
 in
 if platform.os != "linux" || platform.cpu != "x86_64" then
   throwUn "unsupported platform ${platform.os}/${platform.cpu}"

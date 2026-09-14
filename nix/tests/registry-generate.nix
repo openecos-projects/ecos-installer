@@ -53,6 +53,14 @@ let
     (mustFail "mutable-latest-on-pinned-tool" (
       tryModel (withSection "slang" (s: s // { version = "latest"; }))
     ))
+    (mustFail "latest-url-on-pinned-tool" (
+      tryModel (
+        withSection "verilator" (s: s // { url = "https://example.com/verilator-latest.tar.gz"; })
+      )
+    ))
+    (mustFail "non-versioned-sidecar" (
+      tryModel (withSection "slang" (s: s // { metadata_url = "https://example.com/slang-11.0.json"; }))
+    ))
     (mustFail "oss-registry-name" (tryModel (withSection "oss_cad_suite" (s: s // { name = "oss"; }))))
     (mustFail "pkg-unknown-kind" (
       tryModel (
