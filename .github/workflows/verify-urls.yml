@@ -1,0 +1,22 @@
+name: Verify registry URL parity
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-urls:
+    name: Compare legacy and new registry URLs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare URL checksums
+        run: |
+          new="$(curl -fsSL --max-time 60 https://emin017.github.io/ecos-release/tool-registry.json | sha256sum | cut -d' ' -f1)"
+          old="$(curl -fsSL --max-time 60 https://emin017.github.io/ecos-registry/tool-registry.json | sha256sum | cut -d' ' -f1)"
+          echo "new=$new"
+          echo "old=$old"
+          if [ -z "$new" ] || [ -z "$old" ] || [ "$new" != "$old" ]; then
+            echo "::error::registry URLs diverge (new=$new old=$old)"
+            exit 1
+          fi
