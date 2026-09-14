@@ -84,8 +84,8 @@ requires = [
 version = "latest"
 url = "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-latest/ecc-fe-latest.tar.gz"
 metadata_url = "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-latest/ecc-fe-latest.metadata.json"
-sha256 = "339b26f8de7ce33e82c8b845ce336f558d2084a27006fc5ce2cd44d95ae0aee9"
-size = 21995914
+sha256 = "3afef5671a87c98b6c0a1f90f081d27ab0442ab2b9ad9824cedee39acc0f0d10"
+size = 22497841
 strip_prefix = "ecc-fe-latest"
 
 [ecc-fe-cpu-rtl]
@@ -98,8 +98,8 @@ requires = []
 version = "latest"
 url = "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-cpu-rtl-latest/ecc-fe-cpu-rtl-latest.tar.gz"
 metadata_url = "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-cpu-rtl-latest/ecc-fe-cpu-rtl-latest.metadata.json"
-sha256 = "377a118d25fd3760007e88916f47a00b91d4bfbdfb048029fa92c14ca1e29b27"
-size = 1527766
+sha256 = "afae66cc8c7cf0dfc954e8fee710b29a3e19c9d6cebdd4731140fcee71ee1a51"
+size = 1527780
 strip_prefix = "ecc-fe-cpu-rtl-latest"
 
 [ecc-fe-soc-ysyx-am]
@@ -112,8 +112,8 @@ requires = ["tool:ecc-fe-cpu-rtl", "tool:ecc-fe-difftest-ref"]
 version = "latest"
 url = "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-soc-ysyx-am-latest/ecc-fe-soc-ysyx-am-latest.tar.gz"
 metadata_url = "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-soc-ysyx-am-latest/ecc-fe-soc-ysyx-am-latest.metadata.json"
-sha256 = "57d4becbf7de76d69b1daaa85ed42013abda9e05174c2b2115a4698059b89e95"
-size = 464521
+sha256 = "2d2992544b4136a2e51071ce5b627f57c3526dfba9af2808d207d5f3346f8b28"
+size = 464520
 strip_prefix = "ecc-fe-soc-ysyx-am-latest"
 
 [ecc-fe-difftest-ref]
@@ -126,7 +126,7 @@ requires = []
 version = "latest"
 url = "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-difftest-ref-latest/ecc-fe-difftest-ref-latest.tar.gz"
 metadata_url = "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-difftest-ref-latest/ecc-fe-difftest-ref-latest.metadata.json"
-sha256 = "98bf73e49bd65e74a45455ac4dc2e78789c5adb0c11b6fbcab27109591ef0d50"
+sha256 = "99aa42e058586a059d76de1bf6171e3a5d2866374afc2f26d340e3876cc7112e"
 size = 20658948
 strip_prefix = "ecc-fe-difftest-ref-latest"
 
@@ -140,8 +140,8 @@ requires = []
 version = "latest"
 url = "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-examples-latest/ecc-fe-examples-latest.tar.gz"
 metadata_url = "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-examples-latest/ecc-fe-examples-latest.metadata.json"
-sha256 = "adef1f143b4d028b0f544f922daf0c55889b78ef339608902435db8447e734e5"
-size = 11203
+sha256 = "e110ee43c47cf0cf4a0d41d62332adaff46d4cb5e0fd21a1d19ccaa372eb43a7"
+size = 11202
 strip_prefix = "ecc-fe-examples-latest"
 
 [slang]
@@ -319,8 +319,8 @@ category = "mpc"
 homepage = "https://github.com/openecos-projects/mpc-frame"
 version = "0.1.0"
 platform = "all-platform"
-url = "https://github.com/openecos-projects/mpc-frame/archive/80f226fdd11d7a9e651ca0b113d320606b2c549c.tar.gz"
-sha256 = "d1f1dca00198411de5a96dd28b1c861e946b2d2c5a072863b7630759414b4fc8"
-size = 485867
-strip_prefix = "mpc-frame-80f226fdd11d7a9e651ca0b113d320606b2c549c"
+url = "https://github.com/openecos-projects/mpc-frame/archive/01ac0615e3b6d73db605afaf7c67851ef0cf5767.tar.gz"
+sha256 = "ead5db9dcbc081fd11e0549d6093d1f0190014bd818d28cf23be631d33b16dc0"
+size = 486715
+strip_prefix = "mpc-frame-01ac0615e3b6d73db605afaf7c67851ef0cf5767"
 update_source = { type = "github_branch", branch = "main" }
