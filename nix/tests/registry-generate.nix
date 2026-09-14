@@ -198,6 +198,22 @@ let
       registry.tools ++ registry.pdks ++ registry.mpcs
     );
     noSizerEntity = builtins.all (t: t.name != "ecc-sizer") registry.tools;
+    allEntitiesPresent =
+      builtins.sort builtins.lessThan (map (t: t.name) registry.tools) == [
+        "ecc"
+        "ecc-fe"
+        "ecc-fe-cpu-rtl"
+        "ecc-fe-difftest-ref"
+        "ecc-fe-examples"
+        "ecc-fe-soc-ysyx-am"
+        "riscv-toolchain"
+        "slang"
+        "surfer"
+        "verilator"
+        "yosys"
+      ]
+      && map (p: p.id) registry.pdks == [ "ics55" ]
+      && map (m: m.id) registry.mpcs == [ "mpc-frame" ];
     yosysProjectsFromOss = builtins.any (
       t: t.name == "yosys" && (builtins.head t.versions).version == model.ossCadSuite.version
     ) registry.tools;
@@ -259,6 +275,8 @@ let
     jq -e '(.tools | length) == 11 and (.pdks | length) == 1 and (.mpcs | length) == 1' "$json"
     jq -e 'all(.tools[], .pdks[], .mpcs[]; (.versions | length) == 1)' "$json"
     jq -e '[.tools[].name] | (index("ecc") and index("yosys") and (index("ecc-sizer") | not))' "$json"
+    jq -e '[.tools[].name] | sort == ["ecc", "ecc-fe", "ecc-fe-cpu-rtl", "ecc-fe-difftest-ref", "ecc-fe-examples", "ecc-fe-soc-ysyx-am", "riscv-toolchain", "slang", "surfer", "verilator", "yosys"]' "$json"
+    jq -e '[.pdks[].id] == ["ics55"] and [.mpcs[].id] == ["mpc-frame"]' "$json"
     jq -e '.pdks[0].versions[0].version == "1.10.102"' "$json"
     jq -e '.pdks[0].versions[0] | (has("requires") | not)' "$json"
     jq -e '.pdks[0].versions[0].platforms["all-platform"] | (has("post_install") or has("supplemental_assets") | not)' "$json"
