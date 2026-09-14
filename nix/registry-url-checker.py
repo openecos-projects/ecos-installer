@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Reachability checks for every download URL in a generated registry JSON.
 
 Usage: check-registry-urls <tool-registry.json>
@@ -8,6 +6,8 @@ HEAD is probed first; a ranged GET fallback covers servers that reject
 HEAD. Any non-success status, timeout, empty URL, or malformed entry
 fails with a non-zero exit.
 """
+
+from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from http.client import HTTPException
