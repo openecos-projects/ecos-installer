@@ -24,6 +24,7 @@
       semver = import ./nix/semver.nix { inherit lib; };
       loadModel = import ./nix/model.nix { inherit lib semver; };
       generate = import ./nix/generate.nix { inherit lib; };
+      generateRegistry = import ./nix/generate-registry.nix { inherit lib; };
       publish = import ./nix/publish.nix { inherit lib semver; };
 
       templatePath = ./templates/ecc-installer.sh.in;
@@ -31,6 +32,7 @@
       toolchain = builtins.fromTOML (builtins.readFile ./metadata/toolchain.toml);
       model = loadModel toolchain;
       generated = generate { inherit template model; };
+      registry = generateRegistry { inherit model; };
 
       eccInstaller = pkgs.writeTextFile {
         name = "ecc-installer.sh";
@@ -41,6 +43,8 @@
           ${pkgs.bash}/bin/bash -n "$target"
         '';
       };
+
+      toolRegistry = pkgs.writeText "tool-registry.json" (builtins.toJSON registry);
 
       publishDecide = pkgs.writeShellApplication {
         name = "publish-decide";
@@ -96,6 +100,7 @@
       packages.${system} = {
         ecc-installer = eccInstaller;
         default = eccInstaller;
+        tool-registry = toolRegistry;
       };
 
       apps.${system} = {
@@ -137,6 +142,17 @@
         };
         installer-syntax = installerChecks.syntax;
         installer-e2e = installerChecks.e2e;
+        registry-generate = import ./nix/tests/registry-generate.nix {
+          inherit
+            lib
+            pkgs
+            loadModel
+            generateRegistry
+            registry
+            toolchain
+            ;
+          registryJson = toolRegistry;
+        };
         formatting = treefmtEval.config.build.check self;
       };
 
