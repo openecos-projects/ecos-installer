@@ -100,7 +100,7 @@ let
     )
   );
 
-  older = builtins.replaceStrings [ "0.1.0-alpha.11" ] [ "0.1.0-alpha.10" ] text;
+  older = builtins.replaceStrings [ model.ecc.version ] [ "0.1.0-alpha.10" ] text;
   malformed = "not an installer\n";
   sameVerDiff = builtins.replaceStrings [ "MIN_GLIBC_MAJOR=\"2\"" ] [ "MIN_GLIBC_MAJOR=\"9\"" ] text;
   rejectDiff = builtins.tryEval (
@@ -127,8 +127,11 @@ pkgs.runCommand "ecos-release-generate-check" { } ''
   ${lib.optionalString (!(lib.hasPrefix "#!/bin/sh\n" text)) "echo 'missing shebang' >&2; exit 1"}
   ${lib.optionalString (lib.hasInfix "@ECC_VERSION@" text) "echo 'unsubstituted placeholder' >&2; exit 1"}
   ${lib.optionalString (
-    !(lib.hasInfix ''ECC_VERSION="0.1.0-alpha.11"'' text)
+    !(lib.hasInfix ''ECC_VERSION="${model.ecc.version}"'' text)
   ) "echo 'missing version' >&2; exit 1"}
+  ${lib.optionalString (
+    !(lib.hasInfix ''PDK_VERSION="${model.pdk.version}"'' text)
+  ) "echo 'missing PDK version' >&2; exit 1"}
   ${lib.optionalString (
     !(lib.hasInfix model.ecc.cnbUrl text)
   ) "echo 'missing ECC cnb_url' >&2; exit 1"}
