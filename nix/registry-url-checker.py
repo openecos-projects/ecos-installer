@@ -54,6 +54,9 @@ def _open_url(request: Request, timeout: float) -> UrlResponse:
     return urlopen(request, timeout=timeout)
 
 
+HEAD_FALLBACK_STATUSES = (405, 501)
+
+
 def check_url_reachable(
     url: str,
     *,
@@ -63,6 +66,8 @@ def check_url_reachable(
     head_error = _request_url(url, "HEAD", opener=opener, timeout=timeout)
     if head_error is None:
         return None
+    if not any(f"returned HTTP {code}" in head_error for code in HEAD_FALLBACK_STATUSES):
+        return head_error
     return _request_url(
         url,
         "GET",

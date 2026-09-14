@@ -221,6 +221,67 @@ class RegistryUrlCheckerTests(unittest.TestCase):
         self.assertEqual("bytes=0-0", requests[1].headers["Range"])
         self.assertEqual([1], get_response.read_sizes)
 
+    def test_url_checker_falls_back_on_head_501(self) -> None:
+        """HEAD 501 is the other accepted trigger for the ranged GET fallback."""
+        requests: list[Request] = []
+
+        def opener(request: Request, timeout: float) -> FakeResponse:
+            del timeout
+            requests.append(request)
+            if request.get_method() == "HEAD":
+                raise HTTPError(
+                    request.full_url,
+                    501,
+                    "Not Implemented",
+                    HTTPMessage(),
+                    None,
+                )
+            return FakeResponse(206)
+
+        error = registry_url_checker.check_url_reachable(
+            "https://example.com/yosys.tar.gz",
+            opener=opener,
+        )
+
+        self.assertIsNone(error)
+        self.assertEqual(["HEAD", "GET"], [request.get_method() for request in requests])
+
+    def test_url_checker_does_not_fall_back_on_head_not_found(self) -> None:
+        """A HEAD 404 fails immediately; the ranged GET must not rescue it."""
+        requests: list[Request] = []
+
+        def opener(request: Request, timeout: float) -> FakeResponse:
+            del timeout
+            requests.append(request)
+            raise HTTPError(request.full_url, 404, "Not Found", HTTPMessage(), None)
+
+        error = registry_url_checker.check_url_reachable(
+            "https://example.com/missing.tar.gz",
+            opener=opener,
+        )
+
+        self.assertIsNotNone(error)
+        self.assertIn("HEAD returned HTTP 404", error)
+        self.assertEqual(["HEAD"], [request.get_method() for request in requests])
+
+    def test_url_checker_does_not_fall_back_on_head_timeout(self) -> None:
+        """A HEAD timeout fails immediately; the ranged GET must not rescue it."""
+        requests: list[Request] = []
+
+        def opener(request: Request, timeout: float) -> FakeResponse:
+            del timeout
+            requests.append(request)
+            raise TimeoutError("timed out")
+
+        error = registry_url_checker.check_url_reachable(
+            "https://example.com/yosys.tar.gz",
+            opener=opener,
+        )
+
+        self.assertIsNotNone(error)
+        self.assertIn("timed out", error)
+        self.assertEqual(["HEAD"], [request.get_method() for request in requests])
+
     def test_url_checker_accepts_redirect_with_location(self) -> None:
         """Treat download redirects as reachable without probing large asset backends."""
         headers = Message()
@@ -293,7 +354,7 @@ class RegistryUrlCheckerTests(unittest.TestCase):
         )
 
         self.assertIsNotNone(status_error)
-        self.assertIn("GET returned HTTP 404", status_error)
+        self.assertIn("HEAD returned HTTP 404", status_error)
 
     def test_url_checking_reports_malformed_url_without_crashing(self) -> None:
         """Return a normal URL-check error for malformed URLs instead of crashing."""
