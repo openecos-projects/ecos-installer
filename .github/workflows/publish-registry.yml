@@ -4,6 +4,7 @@ on:
     branches:
       - main
     paths:
+      - flake.nix
       - metadata/**
       - nix/**
       - .github/workflows/publish-registry.yml
@@ -31,6 +32,8 @@ jobs:
             experimental-features = nix-command flakes
       - name: Build registry JSON
         run: nix build .#tool-registry
+      - name: Check registry URLs
+        run: nix run .#check-registry-urls -- result
       - name: Record output checksum
         id: hash
         run: echo "sha256=$(sha256sum result | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
