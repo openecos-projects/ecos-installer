@@ -100,6 +100,14 @@
         '';
       };
 
+      checkRegistryUrls = pkgs.writeShellApplication {
+        name = "check-registry-urls";
+        runtimeInputs = [ pkgs.python3 ];
+        text = ''
+          exec python3 ${./nix/registry-url-checker.py} "$@"
+        '';
+      };
+
       installerChecks = import ./nix/tests/installer.nix {
         inherit pkgs;
         installer = eccInstaller;
@@ -123,6 +131,10 @@
         publish-oss = {
           type = "app";
           program = "${publishOss}/bin/publish-oss";
+        };
+        check-registry-urls = {
+          type = "app";
+          program = "${checkRegistryUrls}/bin/check-registry-urls";
         };
       };
 
@@ -158,6 +170,16 @@
           inherit pkgs;
           eccTomlEdit = "${eccTomlEdit}/bin/ecc-toml-edit";
         };
+        registry-url-tests =
+          pkgs.runCommand "ecos-release-registry-url-tests"
+            {
+              nativeBuildInputs = [ pkgs.python3 ];
+            }
+            ''
+              REGISTRY_URL_CHECKER=${./nix/registry-url-checker.py} \
+                python3 ${./nix/tests/test-registry-url-checker.py}
+              echo ok > "$out"
+            '';
         registry-generate = import ./nix/tests/registry-generate.nix {
           inherit
             lib
