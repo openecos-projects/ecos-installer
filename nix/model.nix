@@ -603,10 +603,10 @@ let
         let
           b = src.branch or "";
         in
-        if b != "" && !hasControl b then
+        if b != "" && !hasControl b && builtins.match ".*[[:space:]].*" b == null then
           b
         else
-          throwUn "mpc-frame.update_source.branch must be a non-empty branch name";
+          throwUn "mpc-frame.update_source.branch must be a non-empty branch name without whitespace";
     in
     if (src.type or "") == "github_branch" then
       {
@@ -670,7 +670,7 @@ let
     {
       inherit version tag;
       name = requireNonEmpty "ecc.asset_name" (ecc.asset_name or "");
-      url = requireHttpsUrl "ecc.url" (ecc.url or "");
+      url = requireSuffix "ecc.url" archiveSuffixes (requireHttpsUrl "ecc.url" (ecc.url or ""));
       cnbUrl = requireCnb "ECC" (ecc.cnb_url or "");
       sha256 = requireHex "ecc" (ecc.sha256 or "");
       size = requireSize "ecc" (requireInt "ecc.size" (ecc.size or 0));
@@ -701,7 +701,9 @@ let
     {
       version = ossVersion;
       name = assetName;
-      url = requireHttpsUrl "oss_cad_suite.url" (oss.url or "");
+      url = requireSuffix "oss_cad_suite.url" archiveSuffixes (
+        requireHttpsUrl "oss_cad_suite.url" (oss.url or "")
+      );
       cnbUrl = requireCnb "OSS CAD Suite" (oss.cnb_url or "");
       sha256 = requireHex "oss-cad-suite" (oss.sha256 or "");
       size = requireSize "oss_cad_suite" (requireInt "oss_cad_suite.size" (oss.size or 0));

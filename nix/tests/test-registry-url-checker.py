@@ -171,6 +171,28 @@ class RegistryUrlCheckerTests(unittest.TestCase):
         self.assertIsNone(error)
         self.assertEqual(["HEAD"], [request.get_method() for request in requests])
 
+    def test_default_url_checker_passes_timeout_as_keyword(self) -> None:
+        """Verify the default urlopen adapter passes timeout as a keyword argument."""
+        calls: list[float] = []
+        original_urlopen = registry_url_checker.urlopen
+
+        def fake_urlopen(request: Request, *, timeout: float) -> FakeResponse:
+            self.assertEqual("HEAD", request.get_method())
+            calls.append(timeout)
+            return FakeResponse(200)
+
+        registry_url_checker.urlopen = fake_urlopen
+        try:
+            error = registry_url_checker.check_url_reachable(
+                "https://example.com/yosys.tar.gz",
+                timeout=7.0,
+            )
+        finally:
+            registry_url_checker.urlopen = original_urlopen
+
+        self.assertIsNone(error)
+        self.assertEqual([7.0], calls)
+
     def test_url_checker_falls_back_to_ranged_get_without_full_download(self) -> None:
         """Use a one-byte ranged GET fallback when HEAD is not supported."""
         requests: list[Request] = []

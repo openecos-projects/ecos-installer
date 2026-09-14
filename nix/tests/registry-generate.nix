@@ -219,6 +219,8 @@ let
       && pdkPlatform ? sha256
       && pdkPlatform ? size
       && pdkPlatform ? strip_prefix;
+    packagesFollowRequires =
+      map (pkg: pkg.path) pdkPlatform.packages == map (pkg: pkg.name) model.pdk.assets;
     mpcUpdateSource =
       mpcVersion.platforms.all-platform.update_source == {
         type = "github_branch";

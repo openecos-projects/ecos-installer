@@ -43,6 +43,12 @@ MUTABLE_PLATFORM_FIELDS = frozenset({"url", "metadata_url"})
 
 TOOL_META_FIELDS = ("name", "display_name", "description", "category", "homepage")
 
+TOOL_ENTITY_FIELDS = frozenset(
+    {"name", "display_name", "description", "category", "homepage", "versions"}
+)
+TOOL_VERSION_FIELDS = frozenset({"version", "platforms", "requires"})
+TOOL_PLATFORM_ALLOWED_FIELDS = frozenset({"url", "sha256", "size", "metadata_url", "strip_prefix"})
+
 PDK_BASE_FIELDS = ("url", "sha256", "size", "strip_prefix")
 PDK_ENTITY_FIELDS = frozenset(
     {"id", "display_name", "description", "category", "homepage", "versions"}
@@ -78,6 +84,10 @@ def compare_tools(
 
     for name in sorted(set(baseline_tools) & set(candidate_tools)):
         b, c = baseline_tools[name], candidate_tools[name]
+        if frozenset(c) != TOOL_ENTITY_FIELDS:
+            violations.append(
+                f"tool {name}: unexpected tool fields {sorted(set(c) - TOOL_ENTITY_FIELDS)}"
+            )
         if name == "yosys":
             version_allowed, platform_allowed = YOSYS_VERSION_FIELDS, YOSYS_PLATFORM_FIELDS
         elif name in MUTABLE_LATEST_RESOURCES:
@@ -92,6 +102,10 @@ def compare_tools(
             violations.append(f"tool {name}: version count changed")
             continue
         bv, cv = b["versions"][0], c["versions"][0]
+        if frozenset(cv) != TOOL_VERSION_FIELDS:
+            violations.append(
+                f"tool {name}: unexpected version fields {sorted(set(cv) - TOOL_VERSION_FIELDS)}"
+            )
         version_diff = differing_fields(
             {k: v for k, v in bv.items() if k != "platforms"},
             {k: v for k, v in cv.items() if k != "platforms"},
@@ -105,9 +119,11 @@ def compare_tools(
             continue
         platform_diff: list[str] = []
         for platform_key in bv.get("platforms", {}):
-            platform_diff.extend(
-                differing_fields(bv["platforms"][platform_key], cv["platforms"][platform_key])
-            )
+            bp, cp = bv["platforms"][platform_key], cv["platforms"][platform_key]
+            extra = set(cp) - TOOL_PLATFORM_ALLOWED_FIELDS
+            if extra:
+                violations.append(f"tool {name}: unexpected platform fields {sorted(extra)}")
+            platform_diff.extend(differing_fields(bp, cp))
         unexpected = [field for field in platform_diff if field not in platform_allowed]
         if unexpected:
             violations.append(
