@@ -60,6 +60,12 @@ def compare_tools(
 ) -> None:
     baseline_tools = index_by(baseline["tools"], "name")
     candidate_tools = index_by(candidate["tools"], "name")
+    if len(baseline_tools) != len(baseline["tools"]):
+        violations.append("the baseline tools array has duplicate names")
+    if len(candidate_tools) != len(candidate["tools"]):
+        violations.append("the candidate tools array has duplicate names")
+    if len(baseline_tools) != len(candidate_tools):
+        violations.append("the tools array changed length")
     for name in sorted(set(baseline_tools) - set(candidate_tools)):
         violations.append(f"tool {name} is missing from the candidate")
     for name in sorted(set(candidate_tools) - set(baseline_tools)):

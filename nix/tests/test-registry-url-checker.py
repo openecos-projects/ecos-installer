@@ -99,6 +99,7 @@ def sample_registry() -> dict[str, Any]:
                         "platforms": {
                             "all-platform": {
                                 "url": "https://example.com/pdk.tar.gz",
+                                "cnb_url": "https://cnb.example.com/pdk.tar.gz",
                                 "sha256": "0" * 64,
                                 "size": 3,
                                 "strip_prefix": "pdk-1.10.102",
@@ -289,6 +290,7 @@ class RegistryUrlCheckerTests(unittest.TestCase):
                 "tools[1].versions[0].platforms.linux-x86_64.url",
                 "tools[1].versions[0].platforms.linux-x86_64.metadata_url",
                 "pdks[0].versions[0].platforms.all-platform.url",
+                "pdks[0].versions[0].platforms.all-platform.cnb_url",
                 "pdks[0].versions[0].platforms.all-platform.packages[0].url",
                 "pdks[0].versions[0].platforms.all-platform.packages[0].cnb_url",
                 "pdks[0].versions[0].platforms.all-platform.packages[1].url",

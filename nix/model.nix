@@ -355,9 +355,13 @@ let
   sizerModel = {
     version = sizer.version or "";
     name = sizer.asset_name or "";
-    url = sizer.url or "";
+    url = requireHttpsUrl "sizer.url" (sizer.url or "");
     sha256 = requireHex "sizer" (sizer.sha256 or "");
-    cnbUrl = sizer.cnb_url or "";
+    cnbUrl =
+      let
+        u = sizer.cnb_url or "";
+      in
+      if u == "" then "" else requireHttpsUrl "sizer.cnb_url" u;
     cnbSha256 = sizer.cnb_sha256 or "";
     size = requireSize "sizer" (requireInt "sizer.size" (sizer.size or 0));
     githubRepo = sizer.github_repo or "";

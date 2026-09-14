@@ -111,14 +111,13 @@ def _platform_urls(path: str, platform: object) -> Iterator[tuple[str, str]]:
     if not isinstance(platform, dict):
         yield path, ""
         return
-    # A present-but-empty required field yields ("", ""), which the checker
-    # reports as an empty URL.
-    required = [(field, platform.get(field)) for field in ("url",)]
-    optional = [("metadata_url", platform.get("metadata_url"))]
-    for field, value in required + optional:
+    # Required fields and present-but-empty optional fields yield
+    # ("", ""), which the checker reports as an empty URL.
+    for field, required in (("url", True), ("metadata_url", False), ("cnb_url", False)):
+        value = platform.get(field)
         if isinstance(value, str) and value:
             yield f"{path}.{field}", value
-        elif field in platform:
+        elif required or field in platform:
             yield f"{path}.{field}", ""
     packages = platform.get("packages")
     if isinstance(packages, list):
@@ -126,11 +125,11 @@ def _platform_urls(path: str, platform: object) -> Iterator[tuple[str, str]]:
             if not isinstance(package, dict):
                 yield f"{path}.packages[{index}]", ""
                 continue
-            for field in ("url", "cnb_url"):
+            for field, required in (("url", True), ("cnb_url", True)):
                 value = package.get(field)
                 if isinstance(value, str) and value:
                     yield f"{path}.packages[{index}].{field}", value
-                elif field in package:
+                elif required or field in package:
                     yield f"{path}.packages[{index}].{field}", ""
 
 
