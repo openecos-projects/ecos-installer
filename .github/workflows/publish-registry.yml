@@ -42,11 +42,15 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
+      - name: Stage registry artifact
+        run: |
+          mkdir out
+          cp result out/tool-registry.json
       - name: Upload registry artifact
         uses: actions/upload-artifact@v4
         with:
           name: tool-registry
-          path: result
+          path: out/tool-registry.json
           retention-days: 1
   deploy-pages:
     name: Deploy registry to GitHub Pages
