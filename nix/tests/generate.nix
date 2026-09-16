@@ -21,13 +21,17 @@ let
   v11 = semver.parse "0.1.0-alpha.11";
   vRelease = semver.parse "0.1.0";
 
+  inherit (import ../lib/testing.nix { inherit lib; })
+    withRules
+    withLocks
+    withSection
+    withLock
+    withPkgs
+    mapPkg
+    ;
+
   tryModel = f: builtins.tryEval (loadModel (f sources));
-  withRules = f: m: m // { rules = f m.rules; };
-  withLocks = f: m: m // { locks = f m.locks; };
-  withSection = name: f: withRules (t: t // { ${name} = f t.${name}; });
-  withLock = id: f: withLocks (l: l // { ${id} = f l.${id}; });
-  withPkg =
-    id: f: withRules (t: t // { pdk_pkg = map (pkg: if pkg.id == id then f pkg else pkg) t.pdk_pkg; });
+  withPkg = id: f: withPkgs (mapPkg id f);
 
   badPlatform = tryModel (
     withRules (

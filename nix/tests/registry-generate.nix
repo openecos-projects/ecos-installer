@@ -16,24 +16,21 @@ let
   };
   model = loadModel sources;
 
+  inherit (import ../lib/testing.nix { inherit lib; })
+    withRules
+    withLocks
+    withSection
+    withLock
+    withPkgs
+    mapPkg
+    ;
+
   tryModel = f: builtins.tryEval (loadModel (f sources));
 
   mustFail = name: outcome: {
     inherit name;
     ok = !outcome.success;
   };
-
-  withRules = f: m: m // { rules = f m.rules; };
-  withLocks = f: m: m // { locks = f m.locks; };
-
-  # Returns a rules-section mutator.
-  withSection = name: f: withRules (t: t // { ${name} = f t.${name}; });
-
-  # Returns a lock-entry mutator.
-  withLock = id: f: withLocks (l: l // { ${id} = f l.${id}; });
-
-  mapPkg = id: f: map (pkg: if pkg.id == id then f pkg else pkg);
-  withPkgs = f: withRules (t: t // { pdk_pkg = f t.pdk_pkg; });
 
   negativeCases = [
     (mustFail "unknown-section" (tryModel (withRules (t: t // { not_a_component = { }; }))))

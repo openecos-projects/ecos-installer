@@ -21,7 +21,7 @@
       inherit (pkgs) lib;
       treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
 
-      semver = import ./nix/semver.nix { inherit lib; };
+      semver = (import ./nix/lib { inherit lib; }).semver;
       loadModel = import ./nix/model.nix { inherit lib semver; };
       generate = import ./nix/generate.nix { inherit lib; };
       generateRegistry = import ./nix/generate-registry.nix { inherit lib; };

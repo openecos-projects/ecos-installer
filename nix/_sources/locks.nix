@@ -11,11 +11,11 @@
 # Rules carry metadata, version-source rules (src), and interpolation
 # templates; locks carry the resolved version/url/sha256/size data. The
 # shared helpers (shape validation, template algebra, src schema, merge)
-# live in nix/lib.nix; this file is only the domain wiring: which sections
+# live in nix/lib/; this file is only the domain wiring: which sections
 # exist, which fields they carry, and how the two sources join.
 
 let
-  helpers = import ../lib.nix { inherit lib; };
+  helpers = import ../lib { inherit lib; };
   inherit (helpers) throwUn checkFields checkSrc;
 
   requireLock = helpers.requireLock locks;
