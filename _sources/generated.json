@@ -1,0 +1,380 @@
+{
+    "ICsprout_55LLULP1233_IO_251013_gds": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ICsprout_55LLULP1233_IO_251013_gds",
+        "passthru": null,
+        "pinned": true,
+        "sha256_hex": "47d248be322a6f054a0ab11fe2f2ee83ad76f9ce15d6f4cd53a81c8d08c7693b",
+        "size": 7728902,
+        "src": {
+            "name": null,
+            "sha256": "sha256-R9JIvjIqbwVKCrEf4vLug612+c4V1vTNU6gcjQjHaTs=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ICsprout_55LLULP1233_IO_251013_gds.tar.bz2"
+        },
+        "version": "v1.10.102"
+    },
+    "ecc": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ecc",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "fb63d96bf83e999ace04c1d21c2e0767ab5452875651b7ccc5ddb9610c8180aa",
+        "size": 513976534,
+        "src": {
+            "name": null,
+            "sha256": "sha256-+2PZa/g+mZrOBMHSHC4HZ6tUUodWUbfMxd25YQyBgKo=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/ecc/releases/download/v0.1.0-alpha.12/ecc-cli-linux-x86_64.tar.gz"
+        },
+        "version": "v0.1.0-alpha.12"
+    },
+    "ecc-fe": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ecc-fe",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "3afef5671a87c98b6c0a1f90f081d27ab0442ab2b9ad9824cedee39acc0f0d10",
+        "size": 22497841,
+        "src": {
+            "name": null,
+            "sha256": "sha256-Ov71ZxqHyYtsCh+Q8IHSerBEKrK5rZgkzt7jmswPDRA=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-latest/ecc-fe-latest.tar.gz"
+        },
+        "version": "latest"
+    },
+    "ecc-fe-cpu-rtl": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ecc-fe-cpu-rtl",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "afae66cc8c7cf0dfc954e8fee710b29a3e19c9d6cebdd4731140fcee71ee1a51",
+        "size": 1527780,
+        "src": {
+            "name": null,
+            "sha256": "sha256-r65mzIx88N/JVOj+5xCymj4ZydbOvdRzEUD87nHuGlE=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-cpu-rtl-latest/ecc-fe-cpu-rtl-latest.tar.gz"
+        },
+        "version": "latest"
+    },
+    "ecc-fe-difftest-ref": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ecc-fe-difftest-ref",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "99aa42e058586a059d76de1bf6171e3a5d2866374afc2f26d340e3876cc7112e",
+        "size": 20658948,
+        "src": {
+            "name": null,
+            "sha256": "sha256-mapC4FhYagWddt4b9hceOl0oZjdK/C8m00Djh2zHES4=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-difftest-ref-latest/ecc-fe-difftest-ref-latest.tar.gz"
+        },
+        "version": "latest"
+    },
+    "ecc-fe-examples": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ecc-fe-examples",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "e110ee43c47cf0cf4a0d41d62332adaff46d4cb5e0fd21a1d19ccaa372eb43a7",
+        "size": 11202,
+        "src": {
+            "name": null,
+            "sha256": "sha256-4RDuQ8R88M9KDUHWIzKtr/RtTLXg/SGh0ZzKo3LrQ6c=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-examples-latest/ecc-fe-examples-latest.tar.gz"
+        },
+        "version": "latest"
+    },
+    "ecc-fe-soc-ysyx-am": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ecc-fe-soc-ysyx-am",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "2d2992544b4136a2e51071ce5b627f57c3526dfba9af2808d207d5f3346f8b28",
+        "size": 464520,
+        "src": {
+            "name": null,
+            "sha256": "sha256-LSmSVEtBNqLlEHHOW2J/V8NSbfuprygI0gfV8zRviyg=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/ecos-resource-assets/releases/download/ecc-fe-soc-ysyx-am-latest/ecc-fe-soc-ysyx-am-latest.tar.gz"
+        },
+        "version": "latest"
+    },
+    "ics55_LLSC_H7CH_gds": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ics55_LLSC_H7CH_gds",
+        "passthru": null,
+        "pinned": true,
+        "sha256_hex": "6268684fdd0784087adc1a972125f9001bc9761c3142ab954d2a9eade53d5490",
+        "size": 1502685,
+        "src": {
+            "name": null,
+            "sha256": "sha256-YmhoT90HhAh63BqXISX5ABvJdhwxQquVTSqereU9VJA=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CH_gds.tar.bz2"
+        },
+        "version": "v1.10.102"
+    },
+    "ics55_LLSC_H7CH_liberty": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ics55_LLSC_H7CH_liberty",
+        "passthru": null,
+        "pinned": true,
+        "sha256_hex": "bb79e74960dec7032295e621933410f51963b9cafbd956a196148d44fe27fb2c",
+        "size": 76358374,
+        "src": {
+            "name": null,
+            "sha256": "sha256-u3nnSWDexwMileYhkzQQ9Rljucr72VahlhSNRP4n+yw=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CH_liberty.tar.bz2"
+        },
+        "version": "v1.10.102"
+    },
+    "ics55_LLSC_H7CL_gds": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ics55_LLSC_H7CL_gds",
+        "passthru": null,
+        "pinned": true,
+        "sha256_hex": "9a643ae864d178f45fec4aa59dc98f0420894760d8a431ce0fd640b97e1c2f68",
+        "size": 1512316,
+        "src": {
+            "name": null,
+            "sha256": "sha256-mmQ66GTRePRf7EqlncmPBCCJR2DYpDHOD9ZAuX4cL2g=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CL_gds.tar.bz2"
+        },
+        "version": "v1.10.102"
+    },
+    "ics55_LLSC_H7CL_liberty": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ics55_LLSC_H7CL_liberty",
+        "passthru": null,
+        "pinned": true,
+        "sha256_hex": "c2e7a1eea77772582414108fce178a0f444a61bd4e3ce0a2811ef27caa719fa8",
+        "size": 77546993,
+        "src": {
+            "name": null,
+            "sha256": "sha256-wueh7qd3clgkFBCPzheKD0RKYb1OPOCigR7yfKpxn6g=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CL_liberty.tar.bz2"
+        },
+        "version": "v1.10.102"
+    },
+    "ics55_LLSC_H7CR_gds": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ics55_LLSC_H7CR_gds",
+        "passthru": null,
+        "pinned": true,
+        "sha256_hex": "525a7a486e15e36888e4ce08887c946cd16c60dc2c90819fb493d865ed38cc2b",
+        "size": 1489081,
+        "src": {
+            "name": null,
+            "sha256": "sha256-Ulp6SG4V42iI5M4IiHyUbNFsYNwskIGftJPYZe04zCs=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CR_gds.tar.bz2"
+        },
+        "version": "v1.10.102"
+    },
+    "ics55_LLSC_H7CR_liberty": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "ics55_LLSC_H7CR_liberty",
+        "passthru": null,
+        "pinned": true,
+        "sha256_hex": "ef33eec4cd5f617d3dd0073122e556df06560dd65eebf805648640038dedc2b7",
+        "size": 76996026,
+        "src": {
+            "name": null,
+            "sha256": "sha256-7zPuxM1fYX090AcxIuVW3wZWDdZe6/gFZIZAA43twrc=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v1.10.102/ics55_LLSC_H7CR_liberty.tar.bz2"
+        },
+        "version": "v1.10.102"
+    },
+    "icsprout55-base": {
+        "cargoLock": null,
+        "cnb_sha256": "9bd412cee21a3b89dad0765723b5d4fba2936c41b1bbea1600eba7ba192221ad",
+        "date": null,
+        "extract": null,
+        "name": "icsprout55-base",
+        "passthru": null,
+        "pinned": true,
+        "sha256_hex": "68f81ab68ff0e1e7f41ce0c7e1088605f08cd89acdd8dcfd7594b801c98a3074",
+        "size": 49757561,
+        "src": {
+            "name": "icsprout55-pdk-v1.10.102.tar.gz",
+            "sha256": "sha256-aPgato/w4ef0HODH4QiGBfCM2JrN2Nz9dZS4AcmKMHQ=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/icsprout55-pdk/archive/refs/tags/v1.10.102.tar.gz"
+        },
+        "version": "v1.10.102"
+    },
+    "mpc-frame": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "mpc-frame",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "ead5db9dcbc081fd11e0549d6093d1f0190014bd818d28cf23be631d33b16dc0",
+        "size": 486715,
+        "src": {
+            "name": null,
+            "sha256": "sha256-6tXbncvAgf0R4FSdYJPR8BkAFL2BjSjPI75jHTOxbcA=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/mpc-frame/archive/01ac0615e3b6d73db605afaf7c67851ef0cf5767.tar.gz"
+        },
+        "version": "0.1.0"
+    },
+    "oss_cad_suite": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "oss_cad_suite",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "c3ffafe1549d5bf321b85e6ac30b3bc6af0af72093d5f45117380bcc0645a8e2",
+        "size": 740836017,
+        "src": {
+            "name": null,
+            "sha256": "sha256-w/+v4VSdW/MhuF5qwws7xq8K9yCT1fRRFzgLzAZFqOI=",
+            "type": "url",
+            "url": "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-08-27/oss-cad-suite-linux-x64-20260827.tgz"
+        },
+        "version": "2026-08-27"
+    },
+    "riscv-toolchain": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "riscv-toolchain",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "231ba19378a27f19724805cf5e8b5917064ea9b89f87d7829009fd514369e2ef",
+        "size": 540298396,
+        "src": {
+            "name": null,
+            "sha256": "sha256-Ixuhk3iifxlySAXPXotZFwZOqbifh9eCkAn9UUNp4u8=",
+            "type": "url",
+            "url": "https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2026.06.06/riscv64-elf-ubuntu-22.04-gcc.tar.xz"
+        },
+        "version": "2026.06.06"
+    },
+    "sizer": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "sizer",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "d33a2167600711f35fb1dcef55983b0d669176988d8722ed8b22c03471dafee7",
+        "size": 85803792,
+        "src": {
+            "name": null,
+            "sha256": "sha256-0zohZ2AHEfNfsdzvVZg7DWaRdpiNhyLtiyLANHHa/uc=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/ecc-sizer/releases/download/v0.1.0-alpha/ecc-sizer-0.1.0-alpha-linux-x64.tar.gz"
+        },
+        "version": "v0.1.0-alpha"
+    },
+    "slang": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "slang",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "951a170e10e25e54c91565030acfdfc11c3226714ebf225a18ad4166a898d8a4",
+        "size": 3514870,
+        "src": {
+            "name": null,
+            "sha256": "sha256-lRoXDhDiXlTJFWUDCs/fwRwyJnFOvyJaGK1BZqiY2KQ=",
+            "type": "url",
+            "url": "https://github.com/MikePopoloski/slang/releases/download/v11.0/slang-linux-x86_64.tar.gz"
+        },
+        "version": "v11.0"
+    },
+    "surfer": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "surfer",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "1f07b73cafbc858531ac20f2be5d0ecc464bd0c3f3d6409b8bc6ec6ef86b8fa5",
+        "size": 2769731,
+        "src": {
+            "name": null,
+            "sha256": "sha256-Hwe3PK+8hYUxrCDyvl0OzEZL0MPz1kCbi8bsbvhrj6U=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/ecos-resource-assets/releases/download/surfer-latest/surfer-latest.tar.gz"
+        },
+        "version": "latest"
+    },
+    "verilator": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "verilator",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "d0f622e00fec777c84e616eea69a1689b552534487d642107c646b05b7d46d52",
+        "size": 6413405,
+        "src": {
+            "name": null,
+            "sha256": "sha256-0PYi4A/sd3yE5hbuppoWibVSU0SH1kIQfGRrBbfUbVI=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/ecos-resource-assets/releases/download/verilator-v5.050/verilator-v5.050-linux-x86_64.tar.gz"
+        },
+        "version": "verilator-v5.050"
+    }
+}
