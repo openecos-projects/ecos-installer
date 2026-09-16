@@ -11,8 +11,9 @@ if [[ ! -f $toml || ! -f $locks ]]; then
   exit 1
 fi
 
-repo="$(nix-instantiate --eval --strict --expr "(builtins.fromTOML (builtins.readFile $toml)).ecc.src.github" | tr -d '"\n ')"
-name="$(basename "$(nix-instantiate --eval --strict --expr "(builtins.fromTOML (builtins.readFile $toml)).ecc.url_template" | tr -d '"\n ')")"
+rule="$(nix-instantiate --eval --strict --expr "let t = (builtins.fromTOML (builtins.readFile $toml)).ecc; in t.src.github + \" \" + t.url_template" | tr -d '\"')"
+repo="${rule%% *}"
+name="$(basename "${rule#* }")"
 url="https://github.com/${repo}/releases/download/${tag}/${name}"
 
 prefetch="$(nix-prefetch-url --print-path --type sha256 --name "$name" "$url")"

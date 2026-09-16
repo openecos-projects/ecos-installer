@@ -180,27 +180,6 @@ let
     "surfer"
   ];
 
-  knownSections = [
-    "platform"
-    "ecc"
-    "oss_cad_suite"
-    "sizer"
-    "pdk"
-    "mpc-frame"
-  ]
-  ++ toolSections;
-
-  topCheck =
-    let
-      extra = builtins.filter (k: !builtins.elem k knownSections) (
-        builtins.attrNames (builtins.removeAttrs raw [ "pdk_pkg" ])
-      );
-    in
-    if extra == [ ] then
-      null
-    else
-      throwUn "unknown top-level section(s): ${lib.concatStringsSep ", " extra}";
-
   platformRaw = requireSection "platform";
   ecc = requireSection "ecc";
   oss = requireSection "oss_cad_suite";
@@ -213,16 +192,6 @@ let
       list = raw.pdk_pkg or null;
     in
     if !builtins.isList list then throwUn "missing [[pdk_pkg]] tables" else list;
-
-  platformCheck =
-    let
-      allowed = [
-        "os"
-        "cpu"
-        "min_glibc"
-      ];
-    in
-    checkFields "platform" allowed platformRaw;
 
   parseMinGlibc =
     s:
@@ -764,8 +733,6 @@ let
   };
 
   forcedChecks = [
-    topCheck
-    platformCheck
     tagCheck
     sizerCheck
     pkgIdCheck
