@@ -7,6 +7,7 @@ let
   # (nix/_sources/generated.json) into the manifest validated below.
   raw = import ./_sources/locks.nix { inherit lib rules locks; };
   inherit (semver) parse parseTag;
+  inherit (import ./lib.nix { inherit lib; }) checkFields hexSha;
 
   throwUn = msg: throw "invalid release model: ${msg}";
 
@@ -22,8 +23,6 @@ let
       throwUn "unsafe ${label} path: ${path}"
     else
       path;
-
-  hexSha = s: builtins.match "[0-9a-f]{64}" s != null;
 
   requireHex = label: s: if hexSha s then s else throwUn "invalid SHA-256 for ${label}: ${s}";
 
@@ -116,19 +115,6 @@ let
   requireUnique =
     label: list:
     if lib.unique list == list then list else throwUn "${label} contains duplicate entries";
-
-  # Closed field sets per section: unknown sections and unknown fields fail
-  # here, so typos and retired keys (sha256_url, post_install,
-  # supplemental_assets) cannot re-enter the manifest.
-  checkFields =
-    label: allowed: section:
-    let
-      unknown = builtins.filter (k: !builtins.elem k allowed) (builtins.attrNames section);
-    in
-    if unknown == [ ] then
-      section
-    else
-      throwUn "unknown field(s) in [${label}]: ${lib.concatStringsSep ", " unknown}";
 
   requireSection =
     name:
