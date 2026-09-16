@@ -26,6 +26,7 @@
       generate = import ./nix/generate.nix { inherit lib; };
       generateRegistry = import ./nix/generate-registry.nix { inherit lib; };
       publish = import ./nix/publish.nix { inherit lib semver; };
+      nvfetcher = import ./nix/nvfetcher.nix { inherit pkgs; };
 
       templatePath = ./templates/ecc-installer.sh.in;
       template = builtins.readFile templatePath;
@@ -121,6 +122,7 @@
         ecc-installer = eccInstaller;
         default = eccInstaller;
         tool-registry = toolRegistry;
+        nvfetcher = nvfetcher;
       };
 
       apps.${system} = {

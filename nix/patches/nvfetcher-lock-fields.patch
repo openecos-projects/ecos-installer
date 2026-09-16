@@ -1,0 +1,575 @@
+diff --git a/app/Config.hs b/app/Config.hs
+index ef9e55c..9d4c080 100644
+--- a/app/Config.hs
++++ b/app/Config.hs
+@@ -113,6 +113,9 @@ packageConfigDecoder name =
+     <*> pinnedDecoder
+     <*> ((,) <$> gitDateFormatDecoder <*> gitTimeZoneDecoder)
+     <*> forceFetchDecoder
++    -- the TOML frontend does not support CNB urls; they are only available
++    -- through the Haskell DSL ('fetchCnb')
++    <*> pure Nothing
+ 
+ --------------------------------------------------------------------------------
+ 
+diff --git a/nvfetcher.cabal b/nvfetcher.cabal
+index a7193b6..71bbf64 100644
+--- a/nvfetcher.cabal
++++ b/nvfetcher.cabal
+@@ -29,6 +29,7 @@ common common-options
+     , aeson                 >=1.5.6  && <2.3
+     , aeson-pretty
+     , base                  >=4.8    && <5
++    , base64-bytestring
+     , binary
+     , binary-instances      ^>=1.0
+     , bytestring
+@@ -119,7 +120,9 @@ test-suite tests
+     FetchRustGitDepsSpec
+     GetGitCommitDateSpec
+     NixExprSpec
++    PackageResultSpec
+     PrefetchSpec
++    SriSpec
+     Utils
+ 
+   hs-source-dirs:     test
+diff --git a/src/NvFetcher.hs b/src/NvFetcher.hs
+index 8b40af1..206b89c 100644
+--- a/src/NvFetcher.hs
++++ b/src/NvFetcher.hs
+@@ -158,7 +158,9 @@ runNvFetcherNoCLI config@Config {..} target packageSet = do
+   lastVersions <- parseLastVersions $ buildDir </> generatedJsonFileName
+   shakeDir <- getDataDir
+   -- Set shakeFiles and shakeVersion
+-  let shakeOptions1 = shakeConfig {shakeFiles = shakeDir, shakeVersion = "2"}
++  -- shakeVersion history:
++  --   "3": prefetch rule results carry the fetched file size
++  let shakeOptions1 = shakeConfig {shakeFiles = shakeDir, shakeVersion = "3"}
+   -- shakeConfig in Config will be shakeOptions1 (not including shake extra)
+   shakeExtras <- initShakeExtras (config {shakeConfig = shakeOptions1}) pkgs $ fromMaybe mempty lastVersions
+   -- Set shakeExtra
+diff --git a/src/NvFetcher/Core.hs b/src/NvFetcher/Core.hs
+index ebaea57..6901c79 100644
+--- a/src/NvFetcher/Core.hs
++++ b/src/NvFetcher/Core.hs
+@@ -17,6 +17,8 @@ where
+ 
+ import Data.Coerce (coerce)
+ import qualified Data.HashMap.Strict as HMap
++import Data.Text (Text)
++import qualified Data.Text as T
+ import Development.Shake
+ import Development.Shake.Rule
+ import NvFetcher.ExtractSrc
+@@ -49,53 +51,82 @@ coreRules = do
+             ..
+           } -> do
+           _prversion@(NvcheckerResult version _mOldV _isStale) <- checkVersion versionSource options pkg
+-          _prfetched <- prefetch (_pfetcher version) _pforcefetch
++          mFetched <- prefetch (_pfetcher version) _pforcefetch
+           -- If we fail to prefetch, we should fail on this package
+-          case _prfetched of
+-            Just _prfetched -> do
+-              -- extract src
+-              _prextract <-
+-                case _pextract of
+-                  Just (PackageExtractSrc extract) -> do
+-                    result <- extractSrcs _prfetched extract
+-                    pure $ Just result
+-                  _ -> pure Nothing
+-              -- cargo locks
+-              _prcargolock <-
+-                case _pcargo of
+-                  Just (PackageCargoLockFiles lockPath) -> do
+-                    lockFiles <- HMap.toList <$> extractSrcs _prfetched lockPath
+-                    result <- parallel $
+-                      flip fmap lockFiles $ \(srcLockPath, dstLockPath) -> do
+-                        result <- fetchRustGitDeps _prfetched srcLockPath
+-                        pure (srcLockPath, (dstLockPath, result))
+-                    pure . Just $ HMap.fromList result
+-                  _ -> pure Nothing
++          case mFetched of
++            Just (_prfetched, _prsize) -> do
++              -- Prefetch the CNB url if the package declares one.
++              -- A failed CNB prefetch fails the package, like a failed source prefetch.
++              mCnbSha256 <- case _pcnburl of
++                Nothing -> pure $ Just Nothing
++                Just (PackageCnbUrl mkCnbUrl) ->
++                  prefetch (urlFetcher (mkCnbUrl version)) _pforcefetch >>= \case
++                    Just (cnbFetched, _) -> Just . Just <$> hexSha256Of _pname "CNB" cnbFetched
++                    Nothing -> pure Nothing
++              case mCnbSha256 of
++                Nothing -> pure $ RunResult ChangedRecomputeDiff mempty Nothing
++                Just _prcnbSha256 -> do
++                  -- extract src
++                  _prextract <-
++                    case _pextract of
++                      Just (PackageExtractSrc extract) -> do
++                        result <- extractSrcs _prfetched extract
++                        pure $ Just result
++                      _ -> pure Nothing
++                  -- cargo locks
++                  _prcargolock <-
++                    case _pcargo of
++                      Just (PackageCargoLockFiles lockPath) -> do
++                        lockFiles <- HMap.toList <$> extractSrcs _prfetched lockPath
++                        result <- parallel $
++                          flip fmap lockFiles $ \(srcLockPath, dstLockPath) -> do
++                            result <- fetchRustGitDeps _prfetched srcLockPath
++                            pure (srcLockPath, (dstLockPath, result))
++                        pure . Just $ HMap.fromList result
++                      _ -> pure Nothing
+ 
+-              -- Only git version source supports git commit date
+-              _prgitdate <- case versionSource of
+-                Git {..} -> Just <$> getGitCommitDate _vurl (coerce version) _pgitdate
+-                _ -> pure Nothing
++                  -- Only git version source supports git commit date
++                  _prgitdate <- case versionSource of
++                    Git {..} -> Just <$> getGitCommitDate _vurl (coerce version) _pgitdate
++                    _ -> pure Nothing
+ 
+-              -- update changelog
+-              -- always use on disk version
+-              mOldV <- getLastVersionOnDisk pkg
+-              case mOldV of
+-                Nothing ->
+-                  recordVersionChange _pname Nothing version
+-                Just old
+-                  | old /= version ->
+-                      recordVersionChange _pname (Just old) version
+-                _ -> pure ()
++                  -- update changelog
++                  -- always use on disk version
++                  mOldV <- getLastVersionOnDisk pkg
++                  case mOldV of
++                    Nothing ->
++                      recordVersionChange _pname Nothing version
++                    Just old
++                      | old /= version ->
++                          recordVersionChange _pname (Just old) version
++                    _ -> pure ()
+ 
+-              let _prpassthru = if HMap.null passthru then Nothing else Just passthru
+-                  _prname = _pname
+-                  _prpinned = _ppinned
+-              -- Since we don't save the previous result, we are not able to know if the result changes
+-              -- Depending on this rule leads to RunDependenciesChanged
+-              pure $ RunResult ChangedRecomputeDiff mempty $ Just PackageResult {..}
++                  _prsha256Hex <- hexSha256Of _pname "source" _prfetched
++                  let _prpassthru = if HMap.null passthru then Nothing else Just passthru
++                      _prname = _pname
++                      _prpinned = _ppinned
++                  -- Since we don't save the previous result, we are not able to know if the result changes
++                  -- Depending on this rule leads to RunDependenciesChanged
++                  pure $ RunResult ChangedRecomputeDiff mempty $ Just PackageResult {..}
+             _ -> pure $ RunResult ChangedRecomputeDiff mempty Nothing
+ 
++-- | Convert the SRI sha256 of a fetched fetcher to lowercase hex.
++-- The conversion failing means @nix hash to-sri@ produced something we no
++-- longer understand, which is an internal invariant violation, so we fail
++-- the build instead of emitting a @null@ field.
++hexSha256Of :: PackageName -> Text -> NixFetcher Fetched -> Action Checksum
++hexSha256Of name what fetched =
++  case sriToHex (_sha256 fetched) of
++    Just hex -> pure hex
++    Nothing ->
++      fail $
++        "Failed to convert the "
++          <> T.unpack what
++          <> " sha256 of "
++          <> T.unpack name
++          <> " from SRI to hex: "
++          <> show (_sha256 fetched)
++
+ -- | 'Core' rule take a 'PackageKey', find the corresponding 'Package', and run all needed rules to get 'PackageResult'
+ runPackage :: PackageKey -> Action (Maybe PackageResult)
+ runPackage k = apply1 $ WithPackageKey (Core, k)
+diff --git a/src/NvFetcher/FetchRustGitDeps.hs b/src/NvFetcher/FetchRustGitDeps.hs
+index a8c9525..f159cbf 100644
+--- a/src/NvFetcher/FetchRustGitDeps.hs
++++ b/src/NvFetcher/FetchRustGitDeps.hs
+@@ -67,7 +67,9 @@ fetchRustGitDepsRule = void $
+       parallel
+         [ case parse gitSrcParser s src of
+             Right ParsedGitSrc {..} -> do
+-              (_sha256 -> sha256) <- fromMaybeM (fail $ "Prefetch failed for " <> T.unpack pgurl) $ prefetch (gitFetcher pgurl pgsha) NoForceFetch
++              (_sha256 -> sha256) <-
++                fromMaybeM (fail $ "Prefetch failed for " <> T.unpack pgurl) $
++                  fmap fst <$> prefetch (gitFetcher pgurl pgsha) NoForceFetch
+               -- @${name}-${version}@ -> sha256
+               pure (rname <> "-" <> coerce rversion, sha256)
+             Left err -> fail $ "Failed to parse git source in Cargo lock file: " <> show err
+diff --git a/src/NvFetcher/NixFetcher.hs b/src/NvFetcher/NixFetcher.hs
+index 2df9ddc..9762258 100644
+--- a/src/NvFetcher/NixFetcher.hs
++++ b/src/NvFetcher/NixFetcher.hs
+@@ -42,6 +42,7 @@ module NvFetcher.NixFetcher
+     prefetch,
+ 
+     -- * Functions
++    sriToHex,
+     gitHubFetcher,
+     pypiFetcher,
+     gitHubReleaseFetcher,
+@@ -56,10 +57,13 @@ module NvFetcher.NixFetcher
+ where
+ 
+ import Control.Applicative ((<|>))
+-import Control.Exception (ErrorCall)
+-import Control.Monad (void, when)
++import Control.Exception (ErrorCall, IOException, try)
++import Control.Monad (guard, void, when)
+ import qualified Data.Aeson as A
++import qualified Data.ByteString as BS
++import qualified Data.ByteString.Base64 as B64
+ import Data.Coerce (coerce)
++import Data.Int (Int64)
+ import Data.Text (Text)
+ import qualified Data.Text as T
+ import qualified Data.Text.Encoding as T
+@@ -69,6 +73,8 @@ import NeatInterpolation (trimming)
+ import NvFetcher.Types
+ import NvFetcher.Types.ShakeExtras
+ import Prettyprinter (pretty, (<+>))
++import qualified System.Directory.Extra as D
++import Text.Printf (printf)
+ 
+ --------------------------------------------------------------------------------
+ 
+@@ -82,17 +88,28 @@ sha256ToSri sha256 = do
+     [x] -> pure $ coerce x
+     _ -> fail $ "Failed to parse output from nix hash to-sri: " <> T.unpack out
+ 
+-runNixPrefetchUrl :: Text -> Bool -> Maybe Text -> Action Checksum
++-- | Convert a sha256 'Checksum' in SRI form (@sha256-<base64>@) to lowercase hex.
++-- Returns 'Nothing' if the input is not a well-formed sha256 SRI.
++sriToHex :: Checksum -> Maybe Checksum
++sriToHex (coerce -> sri) = do
++  b64 <- T.stripPrefix "sha256-" sri
++  digest <- either (const Nothing) Just $ B64.decode $ T.encodeUtf8 b64
++  guard $ BS.length digest == 32
++  pure . coerce . T.pack $ concatMap (printf "%02x") $ BS.unpack digest
++
++runNixPrefetchUrl :: Text -> Bool -> Maybe Text -> Action (Checksum, FilePath)
+ runNixPrefetchUrl url unpack name = do
+   (CmdTime t, Stdout (T.decodeUtf8 -> out), CmdLine c) <-
+     quietly $
+       command [EchoStderr False] "nix-prefetch-url" $
+-        [T.unpack url]
++        [T.unpack url, "--print-path"]
+           <> ["--unpack" | unpack]
+           <> concat [["--name", T.unpack name] | Just name <- [name]]
+   putVerbose $ "Finishing running " <> c <> ", took " <> show t <> "s"
+   case takeWhile (not . T.null) $ reverse $ T.lines out of
+-    [x] -> sha256ToSri x
++    [path, hash] -> do
++      sri <- sha256ToSri hash
++      pure (sri, T.unpack path)
+     _ -> fail $ "Failed to parse output from nix-prefetch-url: " <> T.unpack out
+ 
+ newtype FetchedGit = FetchedGit {sha256 :: Text}
+@@ -116,25 +133,46 @@ runNixPrefetchGit url rev fetchSubmodules deepClone leaveDotGit sparseCheckout =
+ 
+ --------------------------------------------------------------------------------
+ 
+-runFetcher :: NixFetcher Fresh -> Action (NixFetcher Fetched)
++-- | Byte size of a prefetched file.
++-- Fails (as a prefetch failure) if the file cannot be statted, is empty,
++-- or does not fit into an 'Int64'.
++probeFileSize :: Text -> FilePath -> Action Int64
++probeFileSize url path = do
++  mSize <- liftIO $ try $ D.getFileSize path
++  size <- case mSize of
++    Left (e :: IOException) -> fail $ "Failed to stat the prefetched file of " <> T.unpack url <> ": " <> show e
++    Right size -> pure size
++  when (size <= 0) $
++    fail $
++      "Prefetched file of " <> T.unpack url <> " is empty"
++  when (size > fromIntegral (maxBound :: Int64)) $
++    fail $
++      "Prefetched file of " <> T.unpack url <> " is too large: " <> show size
++  pure $ fromIntegral size
++
++-- | Run a fetcher, returning the fetched fetcher and, for url fetchers that
++-- do not unpack, the byte size of the fetched file (taken from the nix store
++-- path that @nix-prefetch-url --print-path@ reports).
++runFetcher :: NixFetcher Fresh -> Action (NixFetcher Fetched, Maybe Int64)
+ runFetcher = \case
+   FetchGit {..} -> do
+     result <- runNixPrefetchGit _furl (coerce _rev) _fetchSubmodules _deepClone _leaveDotGit _sparseCheckout
+-    pure FetchGit {_sha256 = coerce result, ..}
++    pure (FetchGit {_sha256 = coerce result, ..}, Nothing)
+   FetchGitHub {..} -> do
+     let useFetchGit = _fetchSubmodules || _leaveDotGit || _deepClone || not (null _sparseCheckout)
+         ver = coerce _rev
+     result <-
+       if useFetchGit
+         then runNixPrefetchGit [trimming|https://github.com/$_fowner/$_frepo|] (coerce _rev) _fetchSubmodules _deepClone _leaveDotGit _sparseCheckout
+-        else runNixPrefetchUrl [trimming|https://github.com/$_fowner/$_frepo/archive/$ver.tar.gz|] True mempty
+-    pure FetchGitHub {_sha256 = result, ..}
++        else fst <$> runNixPrefetchUrl [trimming|https://github.com/$_fowner/$_frepo/archive/$ver.tar.gz|] True mempty
++    pure (FetchGitHub {_sha256 = result, ..}, Nothing)
+   FetchUrl {..} -> do
+-    result <- runNixPrefetchUrl _furl False _name
+-    pure FetchUrl {_sha256 = result, ..}
++    (result, path) <- runNixPrefetchUrl _furl False _name
++    size <- probeFileSize _furl path
++    pure (FetchUrl {_sha256 = result, ..}, Just size)
+   FetchTarball {..} -> do
+-    result <- runNixPrefetchUrl _furl True mempty
+-    pure FetchTarball {_sha256 = result, ..}
++    (result, _) <- runNixPrefetchUrl _furl True mempty
++    pure (FetchTarball {_sha256 = result, ..}, Nothing)
+   FetchDocker {..} -> do
+     (CmdTime t, Stdout out, CmdLine c) <-
+       quietly $
+@@ -149,7 +187,7 @@ runFetcher = \case
+     case A.eitherDecode out of
+       Right FetchedContainer {..} -> do
+         sri <- sha256ToSri hash
+-        pure FetchDocker {_sha256 = sri, _imageDigest = imageDigest, ..}
++        pure (FetchDocker {_sha256 = sri, _imageDigest = imageDigest, ..}, Nothing)
+       Left e -> fail $ "Failed to parse output from nix-prefetch-docker as JSON: " <> e
+ 
+ data FetchedContainer = FetchedContainer
+@@ -187,7 +225,10 @@ prefetchRule = void $
+       else fmap Just <$> withRetry $ runFetcher f
+ 
+ -- | Run nix fetcher
+-prefetch :: NixFetcher Fresh -> ForceFetch -> Action (Maybe (NixFetcher Fetched))
++--
++-- The result contains the fetched fetcher and the byte size of the fetched
++-- file, if the fetcher is an url fetcher that does not unpack.
++prefetch :: NixFetcher Fresh -> ForceFetch -> Action (Maybe (NixFetcher Fetched, Maybe Int64))
+ prefetch f force = askOracle $ RunFetch force f
+ 
+ --------------------------------------------------------------------------------
+diff --git a/src/NvFetcher/PackageSet.hs b/src/NvFetcher/PackageSet.hs
+index 4034682..e2be99b 100644
+--- a/src/NvFetcher/PackageSet.hs
++++ b/src/NvFetcher/PackageSet.hs
+@@ -90,6 +90,7 @@ module NvFetcher.PackageSet
+     gitDateFormat,
+     gitTimeZone,
+     forceFetch,
++    fetchCnb,
+ 
+     -- ** Miscellaneous
+     Prod,
+@@ -164,9 +165,10 @@ newPackage ::
+   UseStaleVersion ->
+   (GitDateFormat, GitTimeZone) ->
+   ForceFetch ->
++  Maybe PackageCnbUrl ->
+   PackageSet ()
+-newPackage name source fetcher extract cargo pasthru useStale (format, tz) force =
+-  liftF $ NewPackage (Package name source fetcher extract cargo pasthru useStale (format, tz) force) ()
++newPackage name source fetcher extract cargo pasthru useStale (format, tz) force cnbUrl =
++  liftF $ NewPackage (Package name source fetcher extract cargo pasthru useStale (format, tz) force cnbUrl) ()
+ 
+ -- | Add a list of packages into package set
+ purePackageSet :: [Package] -> PackageSet ()
+@@ -267,7 +269,8 @@ class PkgDSL f where
+            UseStaleVersion,
+            GitDateFormat,
+            GitTimeZone,
+-           ForceFetch
++           ForceFetch,
++           PackageCnbUrl
+          ]
+         r
+     ) =>
+@@ -294,6 +297,7 @@ instance PkgDSL PackageSet where
+       (fromMaybe NoStale (projMaybe p))
+       (fromMaybe (GitDateFormat Nothing) (projMaybe p), fromMaybe (GitTimeZone Nothing) (projMaybe p))
+       (fromMaybe NoForceFetch (projMaybe p))
++      (projMaybe p)
+ 
+ -- | 'PkgDSL' version of 'newPackage'
+ --
+@@ -317,7 +321,8 @@ define ::
+          UseStaleVersion,
+          GitDateFormat,
+          GitTimeZone,
+-         ForceFetch
++         ForceFetch,
++         PackageCnbUrl
+        ]
+       r
+   ) =>
+@@ -591,3 +596,10 @@ gitTimeZone = (. pure . GitTimeZone) . andThen
+ -- | Set always fetching regardless of the version changing
+ forceFetch :: PackageSet (Prod r) -> PackageSet (Prod (ForceFetch : r))
+ forceFetch = flip andThen . pure $ ForceFetch
++
++-- | Prefetch an additional CNB url (computed from the version) for this package,
++-- recording its sha256 (lowercase hex) as @cnb_sha256@ in the generated json.
++-- The prefetch goes through the same 'RunFetch' rule as the package source,
++-- so it is cached across runs and follows 'forceFetch'.
++fetchCnb :: Attach PackageCnbUrl (Version -> Text)
++fetchCnb = (. pure . PackageCnbUrl) . andThen
+diff --git a/src/NvFetcher/Types.hs b/src/NvFetcher/Types.hs
+index c35d171..cf1768f 100644
+--- a/src/NvFetcher/Types.hs
++++ b/src/NvFetcher/Types.hs
+@@ -73,6 +73,7 @@ module NvFetcher.Types
+     PackageExtractSrc (..),
+     PackageCargoLockFiles (..),
+     PackagePassthru (..),
++    PackageCnbUrl (..),
+     Package (..),
+     PackageKey (..),
+     PackageResult (..),
+@@ -83,6 +84,7 @@ import qualified Data.Aeson as A
+ import Data.Coerce (coerce)
+ import Data.Default
+ import Data.HashMap.Strict (HashMap)
++import Data.Int (Int64)
+ import qualified Data.List.NonEmpty as NE
+ import Data.Maybe (fromMaybe, isNothing)
+ import Data.Proxy (Proxy (..))
+@@ -404,8 +406,11 @@ instance Default ForceFetch where
+ data RunFetch = RunFetch ForceFetch (NixFetcher Fresh)
+   deriving (Show, Eq, Ord, Hashable, NFData, Binary, Typeable, Generic)
+ 
+--- Prefetch rule never throws exceptions
+-type instance RuleResult RunFetch = Maybe (NixFetcher Fetched)
++-- Prefetch rule never throws exceptions.
++-- Along with the fetched fetcher, we also get the byte size of the fetched file,
++-- which is only available for url fetchers that do not unpack
++-- (the size is taken from the file produced by @nix-prefetch-url@).
++type instance RuleResult RunFetch = Maybe (NixFetcher Fetched, Maybe Int64)
+ 
+ -- | If the package is prefetched, then we can obtain the SHA256
+ data NixFetcher (k :: FetchStatus)
+@@ -703,6 +708,10 @@ newtype PackageCargoLockFiles = PackageCargoLockFiles (NE.NonEmpty Glob)
+ newtype PackagePassthru = PackagePassthru (HashMap Text Text)
+   deriving newtype (Semigroup, Monoid)
+ 
++-- | An additional url to prefetch for a package, whose sha256 is recorded
++-- as @cnb_sha256@ in the generated json. The url is computed from the version.
++newtype PackageCnbUrl = PackageCnbUrl (Version -> Text)
++
+ -- | Using stale value indicates that we will /NOT/ check for new versions if
+ -- there is a known version recovered from json file or last use of the rule.
+ -- Normally you don't want a stale version
+@@ -727,6 +736,7 @@ data UseStaleVersion
+ -- 7. if the package version was pinned
+ -- 8. optional git date format with time zone (if the version source is git)
+ -- 9. whether to always fetch a package regardless of the version changing
++-- 10. an optional CNB url to prefetch and record the sha256 of
+ -- /INVARIANT: 'Version' passed to 'PackageFetcher' MUST be used textually,/
+ -- /i.e. can only be concatenated with other strings,/
+ -- /in case we can't check the equality between fetcher functions./
+@@ -739,7 +749,8 @@ data Package = Package
+     _ppassthru :: PackagePassthru,
+     _ppinned :: UseStaleVersion,
+     _pgitdate :: (GitDateFormat, GitTimeZone),
+-    _pforcefetch :: ForceFetch
++    _pforcefetch :: ForceFetch,
++    _pcnburl :: Maybe PackageCnbUrl
+   }
+ 
+ -- | Package key is the name of a package.
+@@ -778,7 +789,14 @@ data PackageResult = PackageResult
+     -- | cargo lock file path relative to package source -> (lock file path relative to build dir, git dependencies)
+     _prcargolock :: Maybe (HashMap FilePath (FilePath, HashMap Text Checksum)),
+     _prpinned :: UseStaleVersion,
+-    _prgitdate :: Maybe Text
++    _prgitdate :: Maybe Text,
++    -- | byte size of the fetched file, only available for url fetchers that do not unpack
++    _prsize :: Maybe Int64,
++    -- | '_prfetched' sha256 in lowercase hex form;
++    -- always present, since a conversion failure fails the build
++    _prsha256Hex :: Checksum,
++    -- | sha256 (lowercase hex) of the prefetched 'PackageCnbUrl', if any
++    _prcnbSha256 :: Maybe Checksum
+   }
+   deriving (Show, Typeable, Generic, NFData)
+ 
+@@ -794,5 +812,8 @@ instance A.ToJSON PackageResult where
+         "pinned" A..= case _prpinned of
+           PermanentStale -> True
+           _ -> False,
+-        "date" A..= _prgitdate
++        "date" A..= _prgitdate,
++        "size" A..= _prsize,
++        "sha256_hex" A..= _prsha256Hex,
++        "cnb_sha256" A..= _prcnbSha256
+       ]
+diff --git a/test/CheckVersionSpec.hs b/test/CheckVersionSpec.hs
+index c5ac394..4242911 100644
+--- a/test/CheckVersionSpec.hs
++++ b/test/CheckVersionSpec.hs
+@@ -141,7 +141,8 @@ fakePackage =
+       _ppassthru = undefined,
+       _ppinned = NoStale,
+       _pgitdate = undefined,
+-      _pforcefetch = undefined
++      _pforcefetch = undefined,
++      _pcnburl = undefined
+     }
+ 
+ fakePinnedPackage :: Package
+diff --git a/test/FetchRustGitDepsSpec.hs b/test/FetchRustGitDepsSpec.hs
+index e95c285..87f7f3e 100644
+--- a/test/FetchRustGitDepsSpec.hs
++++ b/test/FetchRustGitDepsSpec.hs
+@@ -31,7 +31,7 @@ spec = aroundShake $
+           ]
+ 
+ runPrefetchRule :: NixFetcher Fresh -> ReaderT ActionQueue IO (Maybe (NixFetcher Fetched))
+-runPrefetchRule fetcher = fmap join $ runActionChan $ prefetch fetcher NoForceFetch
++runPrefetchRule fetcher = fmap (fmap fst . join) $ runActionChan $ prefetch fetcher NoForceFetch
+ 
+ runFetchRustGitDepsRule :: NixFetcher Fetched -> FilePath -> ReaderT ActionQueue IO (Maybe (HashMap Text Checksum))
+ runFetchRustGitDepsRule fetcher lockPath = runActionChan $ fetchRustGitDeps fetcher lockPath
+diff --git a/test/PrefetchSpec.hs b/test/PrefetchSpec.hs
+index 47c6f90..56299ea 100644
+--- a/test/PrefetchSpec.hs
++++ b/test/PrefetchSpec.hs
+@@ -6,6 +6,7 @@ module PrefetchSpec where
+ import Control.Arrow ((&&&))
+ import Control.Monad (join)
+ import Control.Monad.Trans.Reader
++import Data.Int (Int64)
+ import NvFetcher.NixFetcher
+ import NvFetcher.Types
+ import Test.Hspec
+@@ -39,7 +40,7 @@ spec = aroundShake $
+         `shouldReturnJust` Checksum "sha256-TwfXEION3DcOivzDqXSKNf1PNTZWF124nOF/UbZGRlE="
+ 
+     specifyChan "docker" $
+-      runPrefetchRule' (_sha256 &&& _imageDigest) testDockerFetcher
++      runPrefetchRule' ((_sha256 &&& _imageDigest) . fst) testDockerFetcher
+         `shouldReturnJust` ( Checksum "sha256-uaJxeiRm94tWDBTe51/KwUBKR2vj9i4i3rhotsYPxtM=",
+                              ContainerDigest "sha256:65a2763f593ae85fab3b5406dc9e80f744ec5b449f269b699b5efd37a07ad32e"
+                            )
+@@ -52,6 +53,15 @@ spec = aroundShake $
+         )
+         `shouldReturnJust` Checksum "sha256-jFxm3Zts3ZkgwEJmpHk3cocszzVm2umfhRJCFNam2GA="
+ 
++    specifyChan "url records fetched file size" $
++      runPrefetchRule'
++        snd
++        ( urlFetcher'
++            "https://whatthecommit.com/6f7a23353b95ca5981bf7b685c278d47.txt"
++            (Just "foo.txt")
++        )
++        `shouldReturnJust` Just 23
++
+ testDockerFetcher :: NixFetcher Fresh
+ testDockerFetcher =
+   FetchDocker
+@@ -70,7 +80,7 @@ testDockerFetcher =
+ 
+ -- TODO test force fetch
+ runPrefetchRule :: NixFetcher Fresh -> ReaderT ActionQueue IO (Maybe Checksum)
+-runPrefetchRule = runPrefetchRule' _sha256
++runPrefetchRule = runPrefetchRule' (_sha256 . fst)
+ 
+-runPrefetchRule' :: (NixFetcher Fetched -> a) -> NixFetcher Fresh -> ReaderT ActionQueue IO (Maybe a)
++runPrefetchRule' :: ((NixFetcher Fetched, Maybe Int64) -> a) -> NixFetcher Fresh -> ReaderT ActionQueue IO (Maybe a)
+ runPrefetchRule' g f = fmap join $ runActionChan $ prefetch f NoForceFetch >>= \m -> pure $ g <$> m
