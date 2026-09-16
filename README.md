@@ -31,16 +31,16 @@ Data lands in `$XDG_DATA_HOME/ecc` (or `~/.local/share/ecc`). The wrapper goes t
 
 ## Generate and publish
 
-Pins live in `metadata/toolchain.toml`. The installer source is `templates/ecc-installer.sh.in`.
+Rules (metadata, version sources, templates) live in `metadata/toolchain.toml`; the resolved version/url/sha256/size pins live in `nix/_sources/generated.json` (nvfetcher lock format, see `nix/patches/nvfetcher-lock-fields.md`). The installer source is `templates/ecc-installer.sh.in`.
 
 ```sh
 nix fmt                          # format Nix, Python, TOML, YAML, and shell
 nix build .#ecc-installer        # write ecc-installer.sh; does not fetch real archives
-nix run .#update-ecc -- v<tag>   # prefetch the ECC GitHub asset and update the [ecc] pin
+nix run .#update-ecc -- v<tag>   # prefetch the ECC GitHub asset and update the ecc lock entry
 nix run .#publish-oss -- v<tag>  # PUT the immutable versioned object; advance latest by SemVer 2.0.0
 ```
 
-`update-ecc` only rewrites ECC pins. Bump OSS CAD Suite, ecc-sizer, or the PDK by editing the TOML; for ecc-sizer keep `asset_name` and both URLs in sync with `version` (`ecc-sizer-<version>-linux-x64.tar.gz` embeds it in the basename and the tag), and set `cnb_sha256` only if the mirror bytes differ from GitHub's.
+`update-ecc` only rewrites the ecc lock entry. Until the nvfetcher bump driver lands, bump any other component by prefetching its new artifact (`nix-prefetch-url --print-path <url>`, then `nix hash convert` for the SRI/hex forms and `stat` for the size) and running `nix run .#lock-edit -- set nix/_sources/generated.json <id> <version> <url> <sri> <sha256_hex> <size>`. `cnb_sha256` belongs only to the PDK base, whose CNB mirror bytes differ from GitHub's.
 
 Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET`. A versioned object cannot be overwritten with different bytes. `latest` never moves to an older SemVer.
 
@@ -59,14 +59,14 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 | `installer-e2e` | Fake archives over local HTTP: GitHub success, GitHub failure then CNB, checksum mismatch, unsupported platform, wrapper env, lock, receipt, toolchain fallback |
 | `registry-generate` | Build `tool-registry.json` from the manifest: entity counts, single version per entity, PDK package shape, dependency closure, retired-field rejection, plus negative eval cases for the closed field sets |
 | `registry-url-tests` | Offline unit tests for the URL checker (HEAD with ranged GET fallback, redirect handling, traversal and empty-URL coverage) |
-| `update-ecc-toml` | `[ecc]`-section-scoped TOML reads and edits survive decoy sections; missing keys fail without touching the file |
+| `update-ecc-locks` | `lock-edit` updates one lock entry atomically without touching decoy entries or the canonical formatting; missing entries fail without touching the file |
 | `formatting` | `treefmt` dry-run: nixfmt, ruff, taplo, yamlfmt, shfmt |
 
 `nix develop` provides `treefmt`, `dash`, and `shellcheck`. `nix fmt` runs the same formatters as the `formatting` check.
 
 ## Tool registry publishing
 
-`metadata/toolchain.toml` is the single source of truth for both the installer and the ECOS Studio registry. `nix build .#tool-registry` projects the manifest to `tool-registry.json` (`schema_version` 2; the PDK entry is a base lock plus a `packages` array; the sizer is installer-only and never appears).
+`metadata/toolchain.toml` (rules) and `nix/_sources/generated.json` (locks) are the single source of truth for both the installer and the ECOS Studio registry. `nix build .#tool-registry` projects the merged model to `tool-registry.json` (`schema_version` 2; the PDK entry is a base lock plus a `packages` array; the sizer is installer-only and never appears).
 
 Two URLs serve the same bytes during the transition:
 
@@ -79,4 +79,4 @@ Two URLs serve the same bytes during the transition:
 
 Rollback: revert the offending commit on main and re-run `publish-registry.yml` — both URLs converge on the previous artifact. In an emergency, revert `tool-registry.json` directly in `ecos-registry` main; the next sync PR restores the generated version. If a sync PR sits unmerged, the legacy URL stays on the old bytes and `verify-urls` fails until it merges.
 
-Bumps: `nix run .#update-ecc -- v<tag>` rewrites the `[ecc]` pins; edit every other component in the TOML by hand. `mpc-frame` tracks its upstream branch only through manual bumps.
+Bumps: `nix run .#update-ecc -- v<tag>` rewrites the ecc lock entry; update other components through their `nix/_sources/generated.json` entries (see "Generate and publish"). `mpc-frame` tracks its upstream branch only through manual bumps.

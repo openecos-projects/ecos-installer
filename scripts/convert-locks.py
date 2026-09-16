@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""One-shot converter: legacy toolchain.toml lock fields -> _sources/generated.json.
+"""One-shot converter: legacy toolchain.toml lock fields -> nix/_sources/generated.json.
 
 Reads the pre-migration metadata/toolchain.toml (inline version/url/sha256/size
 lock fields) and writes the initial nvfetcher-style lock file. Lock values are
 the current production pins; this script exists to seed the lock file without
 querying upstream (a first real bump must not pollute the regression gate).
 
-Usage: scripts/convert-locks.py [toolchain.toml] [_sources/generated.json]
+Usage: scripts/convert-locks.py [toolchain.toml] [nix/_sources/generated.json]
 """
 
 from __future__ import annotations
@@ -122,7 +122,7 @@ def entry(
 
 def main() -> None:
     toml_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("metadata/toolchain.toml")
-    out_path = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("_sources/generated.json")
+    out_path = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("nix/_sources/generated.json")
 
     doc = tomllib.loads(toml_path.read_text())
     locks: dict[str, dict] = {}

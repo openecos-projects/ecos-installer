@@ -4,7 +4,7 @@
 
 let
   # Merge the rules (metadata/toolchain.toml) and the locks
-  # (_sources/generated.json) into the manifest validated below.
+  # (nix/_sources/generated.json) into the manifest validated below.
   raw = import ./locks.nix { inherit lib rules locks; };
   inherit (semver) parse parseTag;
 

@@ -31,7 +31,7 @@
       templatePath = ./templates/ecc-installer.sh.in;
       template = builtins.readFile templatePath;
       toolchain = builtins.fromTOML (builtins.readFile ./metadata/toolchain.toml);
-      locks = builtins.fromJSON (builtins.readFile ./_sources/generated.json);
+      locks = builtins.fromJSON (builtins.readFile ./nix/_sources/generated.json);
       model = loadModel {
         rules = toolchain;
         inherit locks;
@@ -65,14 +65,13 @@
         '';
       };
 
-      eccTomlEdit = pkgs.writeShellApplication {
-        name = "ecc-toml-edit";
+      lockEdit = pkgs.writeShellApplication {
+        name = "lock-edit";
         runtimeInputs = [
-          pkgs.gawk
-          pkgs.gnused
+          pkgs.jq
           pkgs.coreutils
         ];
-        text = builtins.readFile ./nix/ecc-toml-edit.sh;
+        text = builtins.readFile ./nix/lock-edit.sh;
       };
 
       updateEcc = pkgs.writeShellApplication {
@@ -84,7 +83,7 @@
           pkgs.coreutils
         ];
         text = ''
-          ECC_TOML_EDIT="${eccTomlEdit}/bin/ecc-toml-edit"
+          LOCK_EDIT="${lockEdit}/bin/lock-edit"
           ${builtins.readFile ./nix/update-ecc.sh}
         '';
       };
@@ -134,6 +133,10 @@
           type = "app";
           program = "${updateEcc}/bin/update-ecc";
         };
+        lock-edit = {
+          type = "app";
+          program = "${lockEdit}/bin/lock-edit";
+        };
         publish-oss = {
           type = "app";
           program = "${publishOss}/bin/publish-oss";
@@ -174,9 +177,9 @@
         };
         installer-syntax = installerChecks.syntax;
         installer-e2e = installerChecks.e2e;
-        update-ecc-toml = import ./nix/tests/update-ecc.nix {
+        update-ecc-locks = import ./nix/tests/update-ecc.nix {
           inherit pkgs;
-          eccTomlEdit = "${eccTomlEdit}/bin/ecc-toml-edit";
+          lockEdit = "${lockEdit}/bin/lock-edit";
         };
         registry-url-tests =
           pkgs.runCommand "ecos-release-registry-url-tests"

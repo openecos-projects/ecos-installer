@@ -4,7 +4,7 @@
   locks,
 }:
 
-# Merge metadata/toolchain.toml (rules) with _sources/generated.json (locks)
+# Merge metadata/toolchain.toml (rules) with nix/_sources/generated.json (locks)
 # into the manifest attrset that nix/model.nix validates and projects.
 #
 # Rules carry metadata, version-source rules (src), and interpolation

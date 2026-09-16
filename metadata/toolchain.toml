@@ -5,7 +5,7 @@
 # (src), and interpolation templates (url_template/cnb_url_template/
 # strip_prefix/name_template/version_map). The lock data those rules resolve
 # to (version/url/sha256/size) lives in the machine-generated
-# _sources/generated.json; never edit that file by hand.
+# nix/_sources/generated.json; never edit that file by hand.
 #
 # Two Nix projections merge this file with the lock file (nix/locks.nix):
 #   - templates/ecc-installer.sh.in via nix/generate.nix (installer pins)
