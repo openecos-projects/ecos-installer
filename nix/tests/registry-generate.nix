@@ -6,27 +6,37 @@
   registry,
   registryJson,
   toolchain,
+  locks,
 }:
 
 let
-  model = loadModel toolchain;
+  sources = {
+    rules = toolchain;
+    inherit locks;
+  };
+  model = loadModel sources;
 
-  tryModel = f: builtins.tryEval (loadModel (f toolchain));
+  tryModel = f: builtins.tryEval (loadModel (f sources));
 
   mustFail = name: outcome: {
     inherit name;
     ok = !outcome.success;
   };
 
-  # Returns a manifest mutator function for tryModel.
-  withSection =
-    name: f: t:
-    t // { ${name} = f t.${name}; };
+  withRules = f: m: m // { rules = f m.rules; };
+  withLocks = f: m: m // { locks = f m.locks; };
+
+  # Returns a rules-section mutator.
+  withSection = name: f: withRules (t: t // { ${name} = f t.${name}; });
+
+  # Returns a lock-entry mutator.
+  withLock = id: f: withLocks (l: l // { ${id} = f l.${id}; });
 
   mapPkg = id: f: map (pkg: if pkg.id == id then f pkg else pkg);
+  withPkgs = f: withRules (t: t // { pdk_pkg = f t.pdk_pkg; });
 
   negativeCases = [
-    (mustFail "unknown-section" (tryModel (t: t // { not_a_component = { }; })))
+    (mustFail "unknown-section" (tryModel (withRules (t: t // { not_a_component = { }; }))))
     (mustFail "unknown-field" (tryModel (withSection "slang" (s: s // { post_install = [ ]; }))))
     (mustFail "retired-sha256-url" (
       tryModel (withSection "slang" (s: s // { sha256_url = "https://example.com/x.sha256"; }))
@@ -34,12 +44,65 @@ let
     (mustFail "retired-supplemental-assets" (
       tryModel (withSection "slang" (s: s // { supplemental_assets = [ ]; }))
     ))
-    (mustFail "missing-url" (tryModel (withSection "slang" (s: builtins.removeAttrs s [ "url" ]))))
-    (mustFail "missing-sha256" (
-      tryModel (withSection "slang" (s: builtins.removeAttrs s [ "sha256" ]))
+    (mustFail "retired-version-field" (tryModel (withSection "slang" (s: s // { version = "11.0"; }))))
+    (mustFail "missing-url" (
+      tryModel (withLock "slang" (l: l // { src = builtins.removeAttrs l.src [ "url" ]; }))
     ))
-    (mustFail "bad-sha256-format" (tryModel (withSection "slang" (s: s // { sha256 = "NOTHEX"; }))))
-    (mustFail "non-positive-size" (tryModel (withSection "slang" (s: s // { size = 0; }))))
+    (mustFail "missing-sha256" (
+      tryModel (withLock "slang" (l: builtins.removeAttrs l [ "sha256_hex" ]))
+    ))
+    (mustFail "missing-src-sha256" (
+      tryModel (withLock "slang" (l: l // { src = builtins.removeAttrs l.src [ "sha256" ]; }))
+    ))
+    (mustFail "bad-sha256-format" (tryModel (withLock "slang" (l: l // { sha256_hex = "NOTHEX"; }))))
+    (mustFail "non-positive-size" (tryModel (withLock "slang" (l: l // { size = 0; }))))
+    (mustFail "orphan-lock" (tryModel (withLocks (l: l // { ghost = l.slang; }))))
+    (mustFail "missing-lock" (tryModel (withLocks (l: builtins.removeAttrs l [ "slang" ]))))
+    (mustFail "url-template-mismatch" (
+      tryModel (
+        withLock "slang" (
+          l:
+          l
+          // {
+            src = l.src // {
+              url = "https://example.com/slang.tar.gz";
+            };
+          }
+        )
+      )
+    ))
+    (mustFail "unknown-version-map" (
+      tryModel (withSection "slang" (s: s // { version_map = "bogus"; }))
+    ))
+    (mustFail "unknown-placeholder" (
+      tryModel (withSection "slang" (s: s // { url_template = "https://example.com/{bogus}/s.tar.gz"; }))
+    ))
+    (mustFail "unknown-src-field" (
+      tryModel (
+        withSection "slang" (
+          s:
+          s
+          // {
+            src = s.src // {
+              gitlab = "x/y";
+            };
+          }
+        )
+      )
+    ))
+    (mustFail "two-src-families" (
+      tryModel (
+        withSection "slang" (
+          s:
+          s
+          // {
+            src = s.src // {
+              manual = "11.0";
+            };
+          }
+        )
+      )
+    ))
     (mustFail "unknown-category" (tryModel (withSection "slang" (s: s // { category = "compiler"; }))))
     (mustFail "all-platform-tool" (
       tryModel (withSection "slang" (s: s // { platform = "all-platform"; }))
@@ -51,11 +114,19 @@ let
       tryModel (withSection "slang" (s: s // { requires = [ "yosys" ]; }))
     ))
     (mustFail "mutable-latest-on-pinned-tool" (
-      tryModel (withSection "slang" (s: s // { version = "latest"; }))
+      tryModel (withLock "slang" (l: l // { version = "latest"; }))
     ))
     (mustFail "latest-url-on-pinned-tool" (
       tryModel (
-        withSection "verilator" (s: s // { url = "https://example.com/verilator-latest.tar.gz"; })
+        withLock "verilator" (
+          l:
+          l
+          // {
+            src = l.src // {
+              url = "https://example.com/verilator-latest.tar.gz";
+            };
+          }
+        )
       )
     ))
     (mustFail "non-versioned-sidecar" (
@@ -63,13 +134,7 @@ let
     ))
     (mustFail "oss-registry-name" (tryModel (withSection "oss_cad_suite" (s: s // { name = "oss"; }))))
     (mustFail "pkg-unknown-kind" (
-      tryModel (
-        t:
-        t
-        // {
-          pdk_pkg = [ (builtins.head t.pdk_pkg // { kind = "archive"; }) ] ++ builtins.tail t.pdk_pkg;
-        }
-      )
+      tryModel (withPkgs (pkgs: [ (builtins.head pkgs // { kind = "archive"; }) ] ++ builtins.tail pkgs))
     ))
     (mustFail "dangling-pkg-reference" (
       tryModel (
@@ -92,64 +157,49 @@ let
         )
       )
     ))
-    (mustFail "two-base-packages" (
-      tryModel (t: t // { pdk_pkg = [ (builtins.head t.pdk_pkg) ] ++ t.pdk_pkg; })
-    ))
+    (mustFail "two-base-packages" (tryModel (withPkgs (pkgs: [ (builtins.head pkgs) ] ++ pkgs))))
     (mustFail "zero-base-packages" (
       tryModel (
-        t:
-        let
-          noBase = builtins.filter (pkg: pkg.kind != "base") t.pdk_pkg;
-        in
-        t
-        // {
-          pdk_pkg = noBase;
-          pdk = t.pdk // {
-            requires = map (pkg: "pdk_pkg:${pkg.id}") noBase;
-          };
-        }
+        withRules (
+          t:
+          let
+            noBase = builtins.filter (pkg: pkg.kind != "base") t.pdk_pkg;
+          in
+          t
+          // {
+            pdk_pkg = noBase;
+            pdk = t.pdk // {
+              requires = map (pkg: "pdk_pkg:${pkg.id}") noBase;
+            };
+          }
+        )
       )
     ))
     (mustFail "base-with-dest" (
       tryModel (
-        t:
-        t
-        // {
-          pdk_pkg = [ (builtins.head t.pdk_pkg // { dest = " somewhere"; }) ] ++ builtins.tail t.pdk_pkg;
-        }
+        withPkgs (pkgs: [ (builtins.head pkgs // { dest = " somewhere"; }) ] ++ builtins.tail pkgs)
       )
     ))
     (mustFail "absolute-dest" (
-      tryModel (
-        t:
-        t
-        // {
-          pdk_pkg = mapPkg "ics55_LLSC_H7CH_liberty" (pkg: pkg // { dest = "/absolute"; }) t.pdk_pkg;
-        }
-      )
+      tryModel (withPkgs (mapPkg "ics55_LLSC_H7CH_liberty" (pkg: pkg // { dest = "/absolute"; })))
     ))
     (mustFail "traversal-dest" (
-      tryModel (
-        t:
-        t
-        // {
-          pdk_pkg = mapPkg "ics55_LLSC_H7CH_liberty" (pkg: pkg // { dest = "../evil"; }) t.pdk_pkg;
-        }
-      )
+      tryModel (withPkgs (mapPkg "ics55_LLSC_H7CH_liberty" (pkg: pkg // { dest = "../evil"; })))
     ))
     (mustFail "same-dest-same-kind" (
       tryModel (
-        t:
-        t
-        // {
-          pdk_pkg = mapPkg "ics55_LLSC_H7CL_liberty" (
+        withPkgs (
+          mapPkg "ics55_LLSC_H7CL_liberty" (
             pkg: pkg // { dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CH"; }
-          ) t.pdk_pkg;
-        }
+          )
+        )
       )
     ))
     (mustFail "liberty-outside-dests" (
       tryModel (withSection "pdk" (p: p // { liberty_files = [ "somewhere_else/not_covered.lib" ]; }))
+    ))
+    (mustFail "pdk-version-disagree" (
+      tryModel (withLock "icsprout55-base" (l: l // { version = "v9.9.9"; }))
     ))
     (mustFail "bad-update-source-type" (
       tryModel (

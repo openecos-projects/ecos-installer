@@ -31,7 +31,11 @@
       templatePath = ./templates/ecc-installer.sh.in;
       template = builtins.readFile templatePath;
       toolchain = builtins.fromTOML (builtins.readFile ./metadata/toolchain.toml);
-      model = loadModel toolchain;
+      locks = builtins.fromJSON (builtins.readFile ./_sources/generated.json);
+      model = loadModel {
+        rules = toolchain;
+        inherit locks;
+      };
       generated = generate { inherit template model; };
       registry = generateRegistry { inherit model; };
 
@@ -151,6 +155,7 @@
             publish
             template
             toolchain
+            locks
             ;
         };
         semver = import ./nix/tests/semver.nix { inherit pkgs semver; };
@@ -164,6 +169,7 @@
             loadModel
             template
             toolchain
+            locks
             ;
         };
         installer-syntax = installerChecks.syntax;
@@ -190,6 +196,7 @@
             generateRegistry
             registry
             toolchain
+            locks
             ;
           registryJson = toolRegistry;
         };

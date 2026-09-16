@@ -6,10 +6,14 @@
   loadModel,
   template,
   toolchain,
+  locks,
 }:
 
 let
-  model = loadModel toolchain;
+  model = loadModel {
+    rules = toolchain;
+    inherit locks;
+  };
   text = generate { inherit template model; };
   older = builtins.replaceStrings [ "0.1.0-alpha.11" ] [ "0.1.0-alpha.10" ] text;
   sameVerDiff = builtins.replaceStrings [ "MIN_GLIBC_MAJOR=\"2\"" ] [ "MIN_GLIBC_MAJOR=\"9\"" ] text;
