@@ -189,7 +189,9 @@ def main() -> None:
         die(f"expected 21 lock entries, produced {len(locks)}")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(locks, indent=4, sort_keys=True) + "\n"
+    # Canonical form = nvfetcher's own output (aeson-pretty): jq -S --indent 4
+    # with NO trailing newline, so future nvfetcher rewrites diff cleanly.
+    text = json.dumps(locks, indent=4, sort_keys=True)
     out_path.write_text(text)
     print(f"wrote {out_path} with {len(locks)} entries")
 

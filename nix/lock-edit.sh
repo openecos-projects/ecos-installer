@@ -3,10 +3,11 @@
 #
 #   lock-edit.sh set <locks.json> <key> <version> <url> <sri> <sha256_hex> <size>
 #
-# The file is rewritten through jq -S --indent 4 (the lock file's canonical
-# format) via a temp file + rename, so the entry set is updated atomically
-# and no other entry changes. Fails without touching the file if the entry
-# does not exist.
+# The file is rewritten in nvfetcher's canonical format (jq -j -S --indent 4,
+# i.e. sorted keys, 4-space indent, no trailing newline) via a temp file +
+# rename, so the entry set is updated atomically, no other entry changes,
+# and later nvfetcher rewrites diff cleanly. Fails without touching the file
+# if the entry does not exist.
 set -euo pipefail
 
 usage() {
@@ -33,7 +34,7 @@ fi
 
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
-jq -S --indent 4 \
+jq -j -S --indent 4 \
   --arg key "$key" \
   --arg version "$version" \
   --arg url "$url" \

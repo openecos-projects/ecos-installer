@@ -39,7 +39,7 @@ let
     trap 'rm -rf "$work"' EXIT
 
     canon() {
-      jq -S --indent 4 . "$1"
+      jq -j -S --indent 4 . "$1"
     }
 
     # Update the ecc entry; the decoy entry must stay untouched and the
