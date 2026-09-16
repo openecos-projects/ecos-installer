@@ -16,7 +16,7 @@ let
   };
   model = loadModel sources;
 
-  inherit (import ../lib/testing.nix { inherit lib; })
+  inherit (import ../../lib/testing.nix { inherit lib; })
     withRules
     withLocks
     withSection

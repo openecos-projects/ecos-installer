@@ -21,7 +21,7 @@ let
   v11 = semver.parse "0.1.0-alpha.11";
   vRelease = semver.parse "0.1.0";
 
-  inherit (import ../lib/testing.nix { inherit lib; })
+  inherit (import ../../lib/testing.nix { inherit lib; })
     withRules
     withLocks
     withSection
