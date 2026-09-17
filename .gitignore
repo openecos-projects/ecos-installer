@@ -16,3 +16,6 @@ result-*
 cloudflare/node_modules/
 # Vendored nvfetcher checkout used to develop nix/patches/nvfetcher-lock-fields.patch
 /nvfetcher/
+
+# bump driver concurrency lock
+nix/_sources/.bump.lock

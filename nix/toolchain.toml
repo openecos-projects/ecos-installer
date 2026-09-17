@@ -152,7 +152,9 @@ description = "Pinned Verilator 5.050 SystemVerilog simulator used by ECC-FE Lin
 category = "simulation"
 homepage = "https://github.com/verilator/verilator"
 requires = []
-src = { github_tag = "openecos-projects/ecos-resource-assets", include_regex = "^verilator-v" }
+# nvchecker applies include_regex as a full match, so the pattern must
+# cover the entire tag
+src = { github_tag = "openecos-projects/ecos-resource-assets", include_regex = "verilator-v.*" }
 version_map = { strip_prefix = "verilator-v" }
 url_template = "https://github.com/openecos-projects/ecos-resource-assets/releases/download/{version}/{version}-linux-x86_64.tar.gz"
 strip_prefix = "{version}-linux-x86_64"

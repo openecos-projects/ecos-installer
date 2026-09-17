@@ -6,6 +6,11 @@
 # lock fields and adds the `fetchCnb` DSL combinator; see
 # nix/patches/nvfetcher-lock-fields.md for the full documentation of the patch.
 #
+# Returns:
+#   library - the patched nvfetcher Haskell package, for linking into the
+#             ecos-bump driver (haskellPackages override)
+#   package - the wrapped nvfetcher CLI (packages.nvfetcher)
+#
 # When bumping `rev`, update `hash` and check the patch still applies
 # (otherwise this build fails at the patch step).
 
@@ -34,12 +39,19 @@ let
       cp ${./patches/nvfetcher/test/PackageResultSpec.hs} test/PackageResultSpec.hs
     '';
   };
+
+  library =
+    pkgs.haskell.lib.overrideCabal (pkgs.haskellPackages.callCabal2nix "nvfetcher" patchedSrc { })
+      (drv: {
+        # build the test suite (it also validates the added test files) but don't
+        # run it: the tests need network access
+        checkPhase = "";
+      });
 in
-pkgs.haskell.lib.overrideCabal (pkgs.haskellPackages.callCabal2nix "nvfetcher" patchedSrc { })
-  (drv: {
-    # build the test suite (it also validates the added test files) but don't
-    # run it: the tests need network access
-    checkPhase = "";
+{
+  inherit library;
+
+  package = pkgs.haskell.lib.overrideCabal library (drv: {
     buildTools = (drv.buildTools or [ ]) ++ [ pkgs.makeWrapper ];
     # Runtime tools the CLI shells out to, mirroring upstream's wrapper.
     # `nix` itself (nix hash, nix-prefetch-url, nix-build) is expected to be
@@ -56,4 +68,5 @@ pkgs.haskell.lib.overrideCabal (pkgs.haskellPackages.callCabal2nix "nvfetcher" p
           ]
         }
     '';
-  })
+  });
+}

@@ -36,11 +36,14 @@ Rules (metadata, version sources, templates) live in `nix/toolchain.toml`; the r
 ```sh
 nix fmt                          # format Nix, Python, TOML, YAML, and shell
 nix build .#ecc-installer        # write ecc-installer.sh; does not fetch real archives
-nix run .#update-ecc -- v<tag>   # prefetch the ECC GitHub asset and update the ecc lock entry
+nix run .#bump                   # check upstream for all 21 components and refresh the lock file
+nix run .#bump -- --only slang   # bump one component exactly (others stay untouched)
+nix run .#bump -- --dry-run      # report drift without writing
+nix run .#bump -- pin ecc v<tag> # lock ecc to an exact tag for this run
 nix run .#publish-oss -- v<tag>  # PUT the immutable versioned object; advance latest by SemVer 2.0.0
 ```
 
-`update-ecc` only rewrites the ecc lock entry. Until the nvfetcher bump driver lands, bump any other component by prefetching its new artifact (`nix-prefetch-url --print-path <url>`, then `nix hash convert` for the SRI/hex forms and `stat` for the size) and running `nix run .#lock-edit -- set nix/_sources/generated.json <id> <version> <url> <sri> <sha256_hex> <size>`. `cnb_sha256` belongs only to the PDK base, whose CNB mirror bytes differ from GitHub's.
+`bump` rewrites only `nix/_sources/generated.json`; rules and metadata stay hand-edited in `nix/toolchain.toml`. The 6 mutable `-latest` entries are re-prefetched whenever they are inside the selection; entries outside it are carried over untouched. `pin` overrides one component's version source for the run (the publish-installer workflow still uses the older `nix run .#update-ecc` bridge for now). A full bump of the prerelease components (ecc, sizer) needs `GITHUB_TOKEN` (or `GH_TOKEN`) in the environment for nvchecker's GitHub API calls.
 
 Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET`. A versioned object cannot be overwritten with different bytes. `latest` never moves to an older SemVer.
 
@@ -79,4 +82,4 @@ Two URLs serve the same bytes during the transition:
 
 Rollback: revert the offending commit on main and re-run `publish-registry.yml` — both URLs converge on the previous artifact. In an emergency, revert `tool-registry.json` directly in `ecos-registry` main; the next sync PR restores the generated version. If a sync PR sits unmerged, the legacy URL stays on the old bytes and `verify-urls` fails until it merges.
 
-Bumps: `nix run .#update-ecc -- v<tag>` rewrites the ecc lock entry; update other components through their `nix/_sources/generated.json` entries (see "Generate and publish"). `mpc-frame` tracks its upstream branch only through manual bumps.
+Bumps: `nix run .#bump` refreshes every lock entry; `nix run .#bump -- pin ecc v<tag>` locks an exact ecc tag. `mpc-frame` tracks its upstream branch automatically on every full bump (its published version advances from the 0.1.0 seed to the commit form).

@@ -1,0 +1,47 @@
+cabal-version:   2.4
+name:            ecos-bump
+version:         0.1.0.0
+synopsis:        Version-lock bump driver for the ecos-release toolchain
+description:
+  Reads the rules from nix/toolchain.toml, drives the (patched) nvfetcher
+  library to check upstream versions and prefetch artifacts, and writes
+  nix/_sources/generated.json back atomically. Also provides the offline
+  check used by the toml-schema flake check.
+
+license:         MIT
+author:          ecos
+category:        Nix
+build-type:      Simple
+
+executable ecos-bump
+  hs-source-dirs:   src, app
+  main-is:          Main.hs
+  other-modules:
+    EcosBump.Locks
+    EcosBump.PackageSet
+    EcosBump.Rules
+
+  build-depends:
+    , aeson
+    , aeson-pretty
+    , base                >=4.8 && <5
+    , bytestring
+    , containers
+    , data-default
+    , directory
+    , filepath
+    , microlens
+    , nvfetcher
+    , optparse-applicative
+    , process
+    , scientific
+    , text
+    , toml-reader
+    , unix
+    , unordered-containers
+
+  ghc-options:
+    -Wall -Wcompat -Wincomplete-uni-patterns -Wredundant-constraints
+    -threaded -rtsopts -with-rtsopts=-N
+
+  default-language: Haskell2010
