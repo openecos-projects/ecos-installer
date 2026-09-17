@@ -6,15 +6,61 @@ on:
         description: Exact ECC tag to publish, for example v0.1.0-alpha.11
         required: true
         type: string
+  # Auto-publish after a bump merge: only when the ecc lock version changed
+  # (the installer's version identity is the ecc version; other components'
+  # drift never triggers this). The change check compares the ecc version
+  # against the previous commit, which covers squash and merge commits.
+  push:
+    branches:
+      - main
+    paths:
+      - nix/_sources/generated.json
 concurrency:
   group: installer-publication
   cancel-in-progress: false
 permissions:
   contents: read
 jobs:
+  # Keep detection in an ungated job so the installer-deploy approval is only
+  # requested when there is actually something to publish.
+  resolve:
+    name: Resolve tag and decide
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      proceed: ${{ steps.resolve.outputs.proceed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Resolve tag
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            before="$(git show HEAD~1:nix/_sources/generated.json | jq -r .ecc.version)"
+            now="$(jq -r .ecc.version nix/_sources/generated.json)"
+            echo "ecc lock version: $before -> $now"
+            if [ "$before" = "$now" ]; then
+              echo "ecc version unchanged; skipping publish"
+              echo "proceed=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "tag=$now" >> "$GITHUB_OUTPUT"
+              echo "proceed=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
   publish:
     name: Validate and publish installer
+    needs: resolve
+    if: needs.resolve.outputs.proceed == 'true'
     runs-on: ubuntu-latest
+    # Push-triggered (bump merge) runs wait for a required reviewer on the
+    # installer-deploy environment; manual dispatches are approved by the
+    # dispatch itself.
+    environment: ${{ github.event_name == 'push' && 'installer-deploy' || 'installer-manual' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,8 +71,9 @@ jobs:
             experimental-features = nix-command flakes pipe-operators
       - name: Magic Nix cache
         uses: DeterminateSystems/magic-nix-cache-action@v15
-      - name: Pin ECC tag
-        run: nix run .#update-ecc -- ${{ inputs.tag }}
+      - name: Pin ECC tag (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: nix run .#update-ecc -- ${{ needs.resolve.outputs.tag }}
       - name: Run flake checks
         run: nix flake check
       - name: Build installer
@@ -38,4 +85,4 @@ jobs:
           OSS_BUCKET: ecc-install-script
           OSS_ENDPOINT: oss-cn-beijing.aliyuncs.com
           OSS_PUBLIC_BASE: https://ecc-install-script.oss-cn-beijing.aliyuncs.com
-        run: nix run .#publish-oss -- ${{ inputs.tag }}
+        run: nix run .#publish-oss -- ${{ needs.resolve.outputs.tag }}

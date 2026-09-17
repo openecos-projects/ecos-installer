@@ -83,7 +83,9 @@ jobs:
             echo "nix flake check and registry URL checks passed in the bump run."
             echo
             echo "Merging triggers publish-registry, whose Pages deployment waits for"
-            echo "approval on the registry-deploy environment."
+            echo "approval on the registry-deploy environment. When the ecc lock version"
+            echo "changed, it also triggers publish-installer, which waits for approval"
+            echo "on the installer-deploy environment before pushing to OSS."
           } > "$body"
           existing="$(gh pr list --head bot/lock-bump \
             --state open --json number --jq 'if length > 0 then .[0].number else empty end')"

@@ -47,6 +47,8 @@ nix run .#publish-oss -- v<tag>  # PUT the immutable versioned object; advance l
 
 Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET`. A versioned object cannot be overwritten with different bytes. `latest` never moves to an older SemVer.
 
+`publish-installer.yml` also runs automatically on every push to main that changes the ecc lock version (which is exactly what a merged `bot/lock-bump` PR does when ecc drifted): it re-runs the flake checks, builds the installer from the locked versions, and publishes the locked tag. Pushes that touch the lock file without changing the ecc version are skipped. The auto-publish job runs on the `installer-deploy` environment — configure a required reviewer on it in the repository settings so every installer release gets an explicit human approval. Manual dispatches run on the unprotected `installer-manual` environment; the dispatch itself is the approval.
+
 
 ## `nix flake check`
 
@@ -77,6 +79,8 @@ Two URLs serve the same bytes during the transition:
 - Legacy: `https://emin017.github.io/ecos-registry/tool-registry.json` (still hardcoded in released Studio builds)
 
 `publish-registry.yml` runs on every push to main that touches `nix/**`, `lib/**`, `flake.nix`, or the workflow itself: it builds the JSON, deploys it to GitHub Pages, polls the new URL until it serves the built sha256, then force-pushes the fixed branch `bot/tool-registry-sync` in `Emin017/ecos-registry` and opens or updates a pull request whose body carries the artifact sha256. Runs without changes do nothing. The workflow needs the repository secret `REGISTRY_SYNC_TOKEN`: a fine-grained PAT scoped to `Emin017/ecos-registry` only, with Contents: read and write plus Pull requests: read and write. GitHub Pages source must be set to GitHub Actions.
+
+Publishes triggered by a merged `bot/lock-bump` PR deploy on the `registry-deploy` environment instead of the plain `github-pages` one — configure a required reviewer on it in the repository settings so an auto-bump merge pauses for approval before anything is published.
 
 `verify-urls.yml` runs daily and fails when the two URLs stop serving identical bytes (for example while a sync PR waits for review). `check.yml` runs `nix flake check` and probes every download URL on PRs and pushes to main.
 
