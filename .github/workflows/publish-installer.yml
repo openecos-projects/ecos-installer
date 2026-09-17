@@ -41,7 +41,9 @@ jobs:
             echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
             echo "proceed=true" >> "$GITHUB_OUTPUT"
           else
-            before="$(git show HEAD~1:nix/_sources/generated.json | jq -r .ecc.version)"
+            # The lock file may not exist on the parent commit at all (the
+            # merge that introduced the lock-driven layout).
+            before="$(git show HEAD~1:nix/_sources/generated.json 2>/dev/null | jq -r '.ecc.version // empty')" || before=""
             now="$(jq -r .ecc.version nix/_sources/generated.json)"
             echo "ecc lock version: $before -> $now"
             if [ "$before" = "$now" ]; then
