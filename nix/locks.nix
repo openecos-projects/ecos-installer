@@ -15,7 +15,7 @@
 # exist, which fields they carry, and how the two sources join.
 
 let
-  helpers = import ../../lib { inherit lib; };
+  helpers = import ../lib { inherit lib; };
   inherit (helpers) throwUn checkFields checkSrc;
 
   requireLock = helpers.requireLock locks;

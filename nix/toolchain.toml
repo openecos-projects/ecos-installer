@@ -7,7 +7,7 @@
 # to (version/url/sha256/size) lives in the machine-generated
 # nix/_sources/generated.json; never edit that file by hand.
 #
-# Two Nix projections merge this file with the lock file (nix/_sources/locks.nix):
+# Two Nix projections merge this file with the lock file (nix/locks.nix):
 #   - templates/ecc-installer.sh.in via nix/generate.nix (installer pins)
 #   - nix/generate-registry.nix (tool-registry.json for ECOS Studio)
 #
@@ -286,7 +286,7 @@ src = { git = "https://github.com/openecos-projects/mpc-frame", branch = "main" 
 url_template = "https://github.com/openecos-projects/mpc-frame/archive/{version}.tar.gz"
 # Seed state: the locked version is the 0.1.0 seed while the locked url and
 # the extracted directory embed the upstream commit. The url_template
-# consistency check is exempted (nix/_sources/locks.nix) and strip_prefix stays static
+# consistency check is exempted (nix/locks.nix) and strip_prefix stays static
 # until the first bump advances the version to commit form.
 strip_prefix = "mpc-frame-01ac0615e3b6d73db605afaf7c67851ef0cf5767"
 update_source = { type = "github_branch", branch = "main" }
