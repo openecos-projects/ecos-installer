@@ -61,8 +61,11 @@ jobs:
     name: Deploy registry to GitHub Pages
     needs: build
     runs-on: ubuntu-latest
+    # Publishes triggered by a bot/lock-bump merge wait for a required
+    # reviewer on the registry-deploy environment; everything else keeps
+    # the plain github-pages environment.
     environment:
-      name: github-pages
+      name: "${{ (contains(github.event.head_commit.message, 'bot/lock-bump') || startsWith(github.event.head_commit.message, 'chore: bump toolchain version locks')) && 'registry-deploy' || 'github-pages' }}"
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Configure Pages
