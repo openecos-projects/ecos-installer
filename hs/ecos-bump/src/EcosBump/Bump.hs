@@ -6,7 +6,7 @@
 -- nvfetcher (version check + prefetch), carry excluded entries over
 -- byte-identically, self-check the result, and write it back atomically.
 -- Any failure leaves the repo lock file untouched.
-module EcosBump.Bump (runBump) where
+module EcosBump.Bump (runBump, checkRuntimeTools) where
 
 import Control.Exception (IOException, finally, try)
 import Control.Monad (filterM, forM_, unless, when)
@@ -32,7 +32,8 @@ import System.Posix.Process (getProcessID)
 
 runBump :: DriverConfig -> Maybe (Text, Text) -> IO ()
 runBump cfg mpin = do
-  checkRuntimeTools (cfgTools cfg)
+  -- callers must run checkRuntimeTools first (it must precede the root
+  -- resolution that produced cfg)
   let root = fromMaybe (error "runBump requires a resolved DriverConfig") (cfgRepoRoot cfg)
       rulesPath = cfgRulesPath cfg
       locksPath = cfgLocksPath cfg

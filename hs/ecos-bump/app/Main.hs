@@ -18,7 +18,7 @@ module Main (main) where
 import Control.Exception (SomeException, displayException, try)
 import Data.Default (def)
 import qualified Data.Text as T
-import EcosBump.Bump (runBump)
+import EcosBump.Bump (checkRuntimeTools, runBump)
 import EcosBump.Config
 import EcosBump.Locks (validateLockFile)
 import EcosBump.Options
@@ -55,7 +55,7 @@ run (CheckCmd cli) = do
   (rulesPath, locksPath) <- case (optRules cli, optLocks cli) of
     (Just rp, Just lp) -> pure (rp, lp)
     _ -> do
-      cfg <- resolveConfig (applyCliOptions def cli)
+      cfg <- applyCliOptions def cli >>= resolveConfig
       pure (cfgRulesPath cfg, cfgLocksPath cfg)
   rules <- loadRules rulesPath
   v <- validateLockFile rules locksPath
@@ -66,8 +66,11 @@ run (BuildCmd cli bo) = runCfg cli bo Nothing
 run (PinCmd cli pid tag bo) = runCfg cli bo {boOnly = [pid]} (Just (pid, tag))
 
 runCfg :: CliOptions -> BuildOpts -> Maybe (T.Text, T.Text) -> IO ()
-runCfg cli bo mpin =
-  resolveConfig (toBuildOpts bo (applyCliOptions def cli)) >>= \cfg -> runBump cfg mpin
+runCfg cli bo mpin = do
+  cfg <- toBuildOpts bo <$> applyCliOptions def cli
+  -- the startup tool check must precede root resolution
+  checkRuntimeTools (cfgTools cfg)
+  resolveConfig cfg >>= \resolved -> runBump resolved mpin
 
 toBuildOpts :: BuildOpts -> DriverConfig -> DriverConfig
 toBuildOpts bo cfg =
@@ -76,4 +79,3 @@ toBuildOpts bo cfg =
       cfgDryRun = boDryRun bo,
       cfgForce = boForce bo
     }
-

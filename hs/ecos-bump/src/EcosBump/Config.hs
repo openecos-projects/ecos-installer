@@ -29,7 +29,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import EcosBump.Options (CliOptions (..))
-import System.Directory (doesFileExist, getCurrentDirectory)
+import System.Directory (doesFileExist, getCurrentDirectory, makeAbsolute)
 import System.FilePath (isAbsolute, takeDirectory, (</>))
 import System.Process (readProcess)
 
@@ -90,27 +90,32 @@ instance Default DriverConfig where
         cfgOnly = []
       }
 
--- | Pure merge: CLI fields override the config (mirrors nvfetcher's
--- applyCliOptions; IO happens in 'resolveConfig').
-applyCliOptions :: DriverConfig -> CliOptions -> DriverConfig
-applyCliOptions cfg cli =
-  cfg
-    { cfgRepoRoot = maybe (cfgRepoRoot cfg) Just (optRepoRoot cli),
-      cfgRulesPath = fromMaybe (cfgRulesPath cfg) (optRules cli),
-      cfgLocksPath = fromMaybe (cfgLocksPath cfg) (optLocks cli)
-    }
+-- | Merge CLI fields over the config; explicitly given paths are
+-- absolutized here (mirrors nvfetcher absolutizing the keyfile at the
+-- merge boundary), so 'resolveConfig' can tell them apart from the
+-- relative layout defaults.
+applyCliOptions :: DriverConfig -> CliOptions -> IO DriverConfig
+applyCliOptions cfg cli = do
+  rulesP <- mapM makeAbsolute (optRules cli)
+  locksP <- mapM makeAbsolute (optLocks cli)
+  rootP <- mapM makeAbsolute (optRepoRoot cli)
+  pure
+    cfg
+      { cfgRepoRoot = maybe (cfgRepoRoot cfg) Just rootP,
+        cfgRulesPath = fromMaybe (cfgRulesPath cfg) rulesP,
+        cfgLocksPath = fromMaybe (cfgLocksPath cfg) locksP
+      }
 
--- | Discover the repo root (unless given), turn the default paths into
--- root-absolute paths, and derive the dirty-check paths from the resolved
--- rules/locks paths. Paths explicitly given by the user are kept verbatim
--- (relative ones stay cwd-relative).
+-- | Discover the repo root (unless given), turn the relative default paths
+-- into root-absolute ones (explicit paths are already absolute from
+-- 'applyCliOptions' and pass through untouched), and derive the
+-- dirty-check paths from the resolved rules/locks paths.
 resolveConfig :: DriverConfig -> IO DriverConfig
 resolveConfig cfg = do
   root <- maybe (findRepoRoot defaultRulesRel) pure (cfgRepoRoot cfg)
   let absolve p
         | isAbsolute p = p
-        | p `elem` [defaultRulesRel, defaultLocksRel, defaultBumpLockRel] = root </> p
-        | otherwise = p
+        | otherwise = root </> p
       rulesP = absolve (cfgRulesPath cfg)
       locksP = absolve (cfgLocksPath cfg)
   pure
