@@ -1,4 +1,4 @@
-name: Flake checks
+name: Check
 on:
   pull_request:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 jobs:
   check:
-    name: nix flake check
+    name: Flake checks and registry URL reachability
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,3 +18,7 @@ jobs:
             experimental-features = nix-command flakes
       - name: Run flake checks
         run: nix flake check
+      - name: Check registry URLs
+        run: |
+          nix build .#tool-registry
+          nix run .#check-registry-urls -- result
