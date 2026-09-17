@@ -12,14 +12,14 @@ module EcosBump.Options
   )
 where
 
-import Data.Text (Text)
 import qualified Data.Text as T
+import EcosBump.Types (ComponentId (..), Pin (..))
 import Options.Applicative
 
 data Command
   = BuildCmd CliOptions BuildOpts
   | CheckCmd CliOptions
-  | PinCmd CliOptions Text Text BuildOpts
+  | PinCmd CliOptions Pin BuildOpts
   | CleanCmd CliOptions
 
 -- | Options every command accepts: the repository layout overrides.
@@ -31,7 +31,7 @@ data CliOptions = CliOptions
   deriving (Show)
 
 data BuildOpts = BuildOpts
-  { boOnly :: [Text],
+  { boOnly :: [ComponentId],
     boDryRun :: Bool,
     boForce :: Bool
   }
@@ -81,7 +81,7 @@ buildOptsParser =
   where
     parseOnly s =
       let ids = T.split (== ',') (T.pack s)
-       in if null ids || any T.null ids then Nothing else Just ids
+       in if null ids || any T.null ids then Nothing else Just (map ComponentId ids)
 
 withCli :: Parser a -> Parser (CliOptions, a)
 withCli p = (,) <$> cliOptionsParser <*> p
@@ -97,7 +97,7 @@ commandParser =
       )
   where
     pinParser =
-      (\c pid tag bo -> PinCmd c pid tag bo)
+      (\c pid tag bo -> PinCmd c (Pin (ComponentId pid) tag) bo)
         <$> cliOptionsParser
         <*> (T.pack <$> argument str (metavar "ID"))
         <*> (T.pack <$> argument str (metavar "TAG"))

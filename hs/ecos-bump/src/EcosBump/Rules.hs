@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 -- | Rules schema of nix/toolchain.toml: decoding and validation.
 --
@@ -9,89 +8,18 @@
 -- nix/_sources/generated.json. This module decodes the rule-relevant
 -- fields and rejects unknown fields, malformed src rules, unknown
 -- version_map values, and illegal template placeholders with labelled
--- errors.
-module EcosBump.Rules
-  ( SrcRule (..),
-    VersionMap (..),
-    Entry (..),
-    Rules (..),
-    loadRules,
-    entryIds,
-    isMutable,
-    stripV,
-    applyVersionMap,
-    interpolate,
-  )
-where
+-- errors. The decoded domain types live in EcosBump.Types.
+module EcosBump.Rules (loadRules) where
 
 import qualified Data.Char as Char
 import Data.List (intercalate)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import EcosBump.Types
 import TOML (Value (..), decodeWith, makeDecoder, renderTOMLError, typeMismatch)
-
--- | Upstream version source for one lock entry.
-data SrcRule
-  = SrcGitHub Text Text Bool
-  -- ^ owner, repo, include prereleases
-  | SrcGitHubTag Text Text (Maybe Text)
-  -- ^ owner, repo, include regex
-  | SrcGit Text (Maybe Text)
-  -- ^ url, branch
-  | SrcManual Text
-  -- ^ pinned version
-  deriving (Eq, Show)
-
-data VersionMap = VmIdentity | VmStripDashes | VmStripPrefix Text
-  deriving (Eq, Show)
-
--- | One lock entry's rules, shared by components and pdk_pkg packages.
-data Entry = Entry
-  { eId :: Text,
-    eSrc :: SrcRule,
-    eVersionMap :: VersionMap,
-    eUrlTemplate :: Text,
-    eCnbUrlTemplate :: Maybe Text,
-    eNameTemplate :: Maybe Text,
-    eNeedsCnb :: Bool,
-    ePinned :: Bool
-  }
-  deriving (Eq, Show)
-
-newtype Rules = Rules {rEntries :: [Entry]}
-  deriving (Eq, Show)
-
-entryIds :: Rules -> [Text]
-entryIds (Rules es) = map eId es
-
--- | Mutable -latest assets: re-prefetched whenever they are inside the
--- current selection.
-isMutable :: Entry -> Bool
-isMutable e = eSrc e == SrcManual "latest"
-
---------------------------------------------------------------------------------
--- Version algebra (mirrors lib/rules-locks.nix)
-
-stripV :: Text -> Text
-stripV t = fromMaybe t (T.stripPrefix "v" t)
-
-applyVersionMap :: VersionMap -> Text -> Text
-applyVersionMap VmIdentity v = v
-applyVersionMap VmStripDashes v = T.replace "-" "" v
-applyVersionMap (VmStripPrefix p) v = fromMaybe v (T.stripPrefix p v)
-
--- | Interpolate {version^} {version} {registry^} {registry}; the ^-forms
--- are replaced before their bare forms.
-interpolate :: Text -> Text -> Text -> Text
-interpolate tmpl version registryVersion =
-  T.replace "{registry}" registryVersion
-    . T.replace "{registry^}" (stripV registryVersion)
-    . T.replace "{version}" version
-    . T.replace "{version^}" (stripV version)
-    $ tmpl
 
 --------------------------------------------------------------------------------
 -- TOML decoding
@@ -173,7 +101,7 @@ decodeSrc label section = do
     (Nothing, Nothing, Just u, Nothing) -> do
       check (label <> ".src") "prerelease requires github" (not prerelease)
       check (label <> ".src") "include_regex requires github_tag" (includeRegex == Nothing)
-      pure (SrcGit u branch)
+      pure (SrcGit (Url u) branch)
     (Nothing, Nothing, Nothing, Just v) -> do
       check (label <> ".src") "prerelease requires github" (not prerelease)
       check (label <> ".src") "include_regex requires github_tag" (includeRegex == Nothing)
@@ -239,7 +167,7 @@ componentEntry allowed label doc = do
   check label "needs_cnb_sha256 is only valid on the PDK base package" (not needsCnb)
   pure
     Entry
-      { eId = label,
+      { eId = ComponentId label,
         eSrc = src,
         eVersionMap = vm,
         eUrlTemplate = urlT,
@@ -270,7 +198,7 @@ pkgEntry pdkManual pkg = do
   nameT <- optStr label pkg "name_template" >>= maybe (Right Nothing) (fmap Just . checkTemplate (label <> ".name_template"))
   pure
     Entry
-      { eId = pkgId,
+      { eId = ComponentId pkgId,
         eSrc = SrcManual pdkManual,
         eVersionMap = VmIdentity,
         eUrlTemplate = urlT,
@@ -319,7 +247,7 @@ loadRules path = do
       Just _ -> err "pdk_pkg" "must be an array of tables"
       Nothing -> err "pdk_pkg" "missing [[pdk_pkg]] tables"
     let allEntries = [ecc, oss, sizer] ++ tools ++ [mpc] ++ pkgs
-        ids = map eId allEntries
+        ids = map (unComponentId . eId) allEntries
         dupes = [x | x <- ids, length (filter (== x) ids) > 1]
     check "pdk_pkg" ("duplicate lock entry id(s): " <> intercalate ", " (map T.unpack dupes)) (null dupes)
     check "toolchain.toml" ("expected 21 lock entries, got " <> show (length allEntries)) (length allEntries == 21)

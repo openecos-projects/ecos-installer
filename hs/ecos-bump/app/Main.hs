@@ -17,12 +17,12 @@ module Main (main) where
 
 import Control.Exception (SomeException, displayException, try)
 import Data.Default (def)
-import qualified Data.Text as T
 import EcosBump.Bump (checkRuntimeTools, runBump)
 import EcosBump.Config
 import EcosBump.Locks (validateLockFile)
 import EcosBump.Options
 import EcosBump.Rules (loadRules)
+import EcosBump.Types (Pin (..))
 import NvFetcher (runNvFetcherNoCLI)
 import NvFetcher.Options (Target (..))
 import Options.Applicative
@@ -55,27 +55,28 @@ run (CheckCmd cli) = do
   (rulesPath, locksPath) <- case (optRules cli, optLocks cli) of
     (Just rp, Just lp) -> pure (rp, lp)
     _ -> do
-      cfg <- applyCliOptions def cli >>= resolveConfig
-      pure (cfgRulesPath cfg, cfgLocksPath cfg)
+      bc <- applyCliOptions def cli >>= resolveConfig
+      pure (bcRulesPath bc, bcLocksPath bc)
   rules <- loadRules rulesPath
   v <- validateLockFile rules locksPath
   case v of
     Left e -> ioError (userError e)
     Right () -> putStrLn "rules and locks: OK"
 run (BuildCmd cli bo) = runCfg cli bo Nothing
-run (PinCmd cli pid tag bo) = runCfg cli bo {boOnly = [pid]} (Just (pid, tag))
+run (PinCmd cli pin bo) = runCfg cli bo {boOnly = [pinId pin]} (Just pin)
 
-runCfg :: CliOptions -> BuildOpts -> Maybe (T.Text, T.Text) -> IO ()
+runCfg :: CliOptions -> BuildOpts -> Maybe Pin -> IO ()
 runCfg cli bo mpin = do
-  cfg <- toBuildOpts bo <$> applyCliOptions def cli
+  cfg <- toBuildOpts bo mpin <$> applyCliOptions def cli
   -- the startup tool check must precede root resolution
   checkRuntimeTools (cfgTools cfg)
-  resolveConfig cfg >>= \resolved -> runBump resolved mpin
+  resolveConfig cfg >>= runBump
 
-toBuildOpts :: BuildOpts -> DriverConfig -> DriverConfig
-toBuildOpts bo cfg =
+toBuildOpts :: BuildOpts -> Maybe Pin -> DriverConfig -> DriverConfig
+toBuildOpts bo mpin cfg =
   cfg
     { cfgOnly = boOnly bo,
       cfgDryRun = boDryRun bo,
-      cfgForce = boForce bo
+      cfgForce = boForce bo,
+      cfgPin = mpin
     }

@@ -23,6 +23,7 @@ executable ecos-bump
     EcosBump.Options
     EcosBump.PackageSet
     EcosBump.Rules
+    EcosBump.Types
 
   build-depends:
     , aeson

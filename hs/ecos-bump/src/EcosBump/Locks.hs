@@ -29,7 +29,7 @@ import Data.Scientific (floatingOrInteger)
 import Data.Text (Text)
 import qualified Data.Text as T
 import EcosBump.Config (procDir)
-import EcosBump.Rules
+import EcosBump.Types
 import System.Directory (createDirectory, doesDirectoryExist, removePathForcibly, renameFile)
 import System.FilePath ((</>))
 import System.IO.Error (isAlreadyExistsError)
@@ -98,7 +98,7 @@ validateLockFile (Rules entries) path = do
       A.Object o -> Right o
       _ -> Left (path <> ": top level must be a JSON object")
     let keys = map K.toText (KM.keys obj)
-        expected = map eId entries
+        expected = map (unComponentId . eId) entries
         extra = [k | k <- keys, k `notElem` expected]
         missing = [k | k <- expected, k `notElem` keys]
     if not (null extra)
@@ -109,8 +109,8 @@ validateLockFile (Rules entries) path = do
       else Right ()
     mapM_
       ( \e ->
-          mapLeft (\m -> "lock " <> T.unpack (eId e) <> ": " <> m) $
-            maybe (Right ()) (validateEntry (eNeedsCnb e)) (KM.lookup (K.fromText (eId e)) obj)
+          mapLeft (\m -> "lock " <> T.unpack (unComponentId (eId e)) <> ": " <> m) $
+            maybe (Right ()) (validateEntry (eNeedsCnb e)) (KM.lookup (K.fromText (unComponentId (eId e))) obj)
       )
       entries
     -- every pdk_pkg lock must agree on one version (the collection version)
@@ -118,7 +118,7 @@ validateLockFile (Rules entries) path = do
           [ ver
           | e <- entries,
             ePinned e,
-            Just ev <- [KM.lookup (K.fromText (eId e)) obj],
+            Just ev <- [KM.lookup (K.fromText (unComponentId (eId e))) obj],
             Just ver <- [jStr =<< lookup' "version" ev]
           ]
         distinct = foldr (\x acc -> if x `elem` acc then acc else x : acc) [] pkgVersions
@@ -129,18 +129,18 @@ validateLockFile (Rules entries) path = do
     mapLeft f (Left m) = Left (f m)
     mapLeft _ r = r
 
--- | Read the version, src url, and src.name of every entry of a lock
+-- | Read the version, src url, and src name of every entry of a lock
 -- file, keyed by entry id. Excluded entries are frozen at their lock
 -- data: a stale seed version cannot always be interpolated into the
 -- url_template or resolved as a git rev (e.g. mpc-frame's 0.1.0 seed).
-readLockSrcs :: FilePath -> IO (Map.Map Text (Text, Text, Maybe Text))
+readLockSrcs :: FilePath -> IO (Map.Map ComponentId LockSrc)
 readLockSrcs path = do
   bs <- BS.readFile path
   case A.decode (LBS.fromStrict bs) of
     Just (A.Object o) ->
       pure $
         Map.fromList
-          [ (K.toText k, (version, url, name))
+          [ (ComponentId (K.toText k), LockSrc version (Url url) name)
           | (k, ev) <- KM.toList o,
             Just (A.String version) <- [lookup' "version" ev],
             Just (A.String url) <- [lookup' "url" =<< lookup' "src" ev],
@@ -153,14 +153,14 @@ readLockSrcs path = do
 -- | Carry the given ids' entries over from the seed file into the new
 -- output, byte-identically. Entries outside the selection must stay
 -- untouched even when their urls are mutable upstream assets.
-mergeExcluded :: [Text] -> LBS.ByteString -> LBS.ByteString -> LBS.ByteString
+mergeExcluded :: [ComponentId] -> LBS.ByteString -> LBS.ByteString -> LBS.ByteString
 mergeExcluded excluded seed out =
   case (A.decode seed, A.decode out) of
     (Just (A.Object s), Just (A.Object o)) ->
       AP.encodePretty $
         A.Object $
           foldl
-            (\acc i -> maybe acc (\v -> KM.insert (K.fromText i) v acc) (KM.lookup (K.fromText i) s))
+            (\acc i -> maybe acc (\v -> KM.insert (K.fromText (unComponentId i)) v acc) (KM.lookup (K.fromText (unComponentId i)) s))
             o
             excluded
     _ -> out

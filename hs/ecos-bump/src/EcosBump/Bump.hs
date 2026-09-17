@@ -15,12 +15,12 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Default (def)
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe, isNothing)
-import Data.Text (Text)
 import qualified Data.Text as T
 import EcosBump.Config
 import EcosBump.Locks
 import EcosBump.PackageSet (buildPackageSet)
-import EcosBump.Rules
+import EcosBump.Rules (loadRules)
+import EcosBump.Types
 import NvFetcher (runNvFetcherNoCLI)
 import NvFetcher.Config (Config (..))
 import NvFetcher.Options (Target (..))
@@ -30,33 +30,33 @@ import System.FilePath ((</>))
 import System.IO.Error (isAlreadyExistsError)
 import System.Posix.Process (getProcessID)
 
-runBump :: DriverConfig -> Maybe (Text, Text) -> IO ()
-runBump cfg mpin = do
-  -- callers must run checkRuntimeTools first (it must precede the root
-  -- resolution that produced cfg)
-  let root = fromMaybe (error "runBump requires a resolved DriverConfig") (cfgRepoRoot cfg)
-      rulesPath = cfgRulesPath cfg
-      locksPath = cfgLocksPath cfg
-  rules <- loadRules rulesPath
+-- | Run the bump pipeline on a fully resolved configuration
+-- ('resolveConfig' guarantees the root is known and every path is
+-- absolute). Callers must run checkRuntimeTools first (it must precede
+-- the root resolution that produced the config).
+runBump :: BumpConfig -> IO ()
+runBump cfg = do
+  rules <- loadRules (bcRulesPath cfg)
   let ids = entryIds rules
-      unknown = [i | i <- cfgOnly cfg, i `notElem` ids]
+      unknown = [i | i <- bcOnly cfg, i `notElem` ids]
+      showId = T.unpack . unComponentId
   when (not (null unknown)) $
     ioError . userError $
       "unknown component id(s): "
-        <> intercalate ", " (map T.unpack unknown)
+        <> intercalate ", " (map showId unknown)
         <> "\ncandidates: "
-        <> intercalate ", " (map T.unpack ids)
-  forM_ mpin $ \(pid, tag) -> do
-    when (pid `notElem` ids) $
+        <> intercalate ", " (map showId ids)
+  forM_ (bcPin cfg) $ \pin -> do
+    when (pinId pin `notElem` ids) $
       ioError . userError $
-        "unknown component id: " <> T.unpack pid <> "\ncandidates: " <> intercalate ", " (map T.unpack ids)
-    when (T.null tag) $
+        "unknown component id: " <> showId (pinId pin) <> "\ncandidates: " <> intercalate ", " (map showId ids)
+    when (T.null (pinTag pin)) $
       ioError (userError "pin requires a non-empty tag")
-  unless (cfgDryRun cfg) $ do
-    dirty <- isRepoDirty root (cfgDirtyPaths cfg)
-    when (dirty && not (cfgForce cfg)) $
-      ioError (userError ("uncommitted changes in " <> intercalate ", " (map (makeRel root) (cfgDirtyPaths cfg)) <> "; commit them or pass --force"))
-  withBumpLock (cfgBumpLockPath cfg) $ do
+  unless (bcDryRun cfg) $ do
+    dirty <- isRepoDirty (bcRoot cfg) (bcDirtyPaths cfg)
+    when (dirty && not (bcForce cfg)) $
+      ioError (userError ("uncommitted changes in " <> intercalate ", " (map (makeRel (bcRoot cfg)) (bcDirtyPaths cfg)) <> "; commit them or pass --force"))
+  withBumpLock (bcBumpLockPath cfg) $ do
     tmpParent <- getTemporaryDirectory
     createDirectoryIfMissing True tmpParent
     tmp <- mkTempDir tmpParent tempPrefix
@@ -64,15 +64,15 @@ runBump cfg mpin = do
       -- Seed the temp buildDir with the current lock file so nvfetcher's
       -- stale/filter mechanics can reuse the old versions; the write-back
       -- happens only on full success.
-      copyFile locksPath (tmp </> generatedJsonName)
+      copyFile (bcLocksPath cfg) (tmp </> generatedJsonName)
       mKeyfile <- writeKeyfile tmp
-      lockSrcs <- readLockSrcs locksPath
-      let selection = if null (cfgOnly cfg) then ids else cfgOnly cfg
+      lockSrcs <- readLockSrcs (bcLocksPath cfg)
+      let selection = if null (bcOnly cfg) then ids else bcOnly cfg
           excluded = [i | i <- ids, i `notElem` selection]
           filterRe =
-            if null (cfgOnly cfg)
+            if null (bcOnly cfg)
               then Nothing
-              else Just ("^(" <> intercalate "|" (map T.unpack selection) <> ")$")
+              else Just ("^(" <> intercalate "|" (map showId selection) <> ")$")
           config =
             def
               { buildDir = tmp,
@@ -80,23 +80,23 @@ runBump cfg mpin = do
                 keyfile = mKeyfile,
                 actionAfterBuild = pure ()
               }
-      runNvFetcherNoCLI config Build (buildPackageSet (rEntries rules) mpin selection lockSrcs)
+      runNvFetcherNoCLI config Build (buildPackageSet (rEntries rules) (bcPin cfg) selection lockSrcs)
       let outJson = tmp </> generatedJsonName
       -- Entries outside the selection are carried over from the seed
       -- byte-identically before the self-check. Read both files strictly:
       -- a lazy read would keep a file lock past the following write.
-      seed <- LBS.fromStrict <$> BS.readFile locksPath
+      seed <- LBS.fromStrict <$> BS.readFile (bcLocksPath cfg)
       new <- LBS.toStrict . mergeExcluded excluded seed . LBS.fromStrict <$> BS.readFile outJson
       BS.writeFile outJson new
       v <- validateLockFile rules outJson
       case v of
         Left e -> ioError (userError ("self-check failed: " <> e))
         Right () -> pure ()
-      if cfgDryRun cfg
+      if bcDryRun cfg
         then putStrLn "dry-run: lock file unchanged"
         else do
-          changed <- atomicWriteIfChanged locksPath new
-          putStrLn (if changed then "updated " <> locksPath else "no changes")
+          changed <- atomicWriteIfChanged (bcLocksPath cfg) new
+          putStrLn (if changed then "updated " <> bcLocksPath cfg else "no changes")
   where
     makeRel root p =
       let ps = T.pack p

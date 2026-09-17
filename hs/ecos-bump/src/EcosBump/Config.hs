@@ -2,14 +2,17 @@
 {-# LANGUAGE TypeApplications #-}
 
 -- | Driver configuration: the repository layout and runtime environment,
--- with nvfetcher-style layering (a `Default` record, a pure CLI merge, and
--- one IO resolution step that discovers the repo root and absolutizes the
--- default paths).
+-- with nvfetcher-style layering. 'DriverConfig' is the unresolved form
+-- (CLI-mergeable, optional root, possibly relative paths); 'resolveConfig'
+-- turns it into a 'BumpConfig', where the root is known and every path is
+-- absolute — so the bump pipeline itself can never run on a partial
+-- configuration.
 --
 -- The default path literals below are duplicated in EcosBump.Options' help
 -- strings; keep them in sync.
 module EcosBump.Config
   ( DriverConfig (..),
+    BumpConfig (..),
     defaultRulesRel,
     defaultLocksRel,
     defaultBumpLockRel,
@@ -26,9 +29,9 @@ where
 import Control.Exception (IOException, try)
 import Data.Default (Default (def))
 import Data.Maybe (fromMaybe)
-import Data.Text (Text)
 import qualified Data.Text as T
 import EcosBump.Options (CliOptions (..))
+import EcosBump.Types (ComponentId, Pin)
 import System.Directory (doesFileExist, getCurrentDirectory, makeAbsolute)
 import System.FilePath (isAbsolute, takeDirectory, (</>))
 import System.Process (readProcess)
@@ -59,9 +62,9 @@ tempPrefix = "ecos-bump"
 defaultTools :: [String]
 defaultTools = ["nvchecker", "nix-prefetch-url", "nix-prefetch-git", "nix", "git"]
 
--- | Everything the driver needs to know about the repository layout and
--- environment. Paths may be relative (to the repo root for the defaults,
--- to the cwd for explicitly given ones) until 'resolveConfig'.
+-- | Unresolved configuration, as merged from the defaults and the CLI.
+-- Paths may be relative (to the repo root for the defaults, to the cwd
+-- for explicitly given ones) until 'resolveConfig'.
 data DriverConfig = DriverConfig
   { cfgRepoRoot :: Maybe FilePath,
     cfgRulesPath :: FilePath,
@@ -72,7 +75,8 @@ data DriverConfig = DriverConfig
     cfgTools :: [String],
     cfgDryRun :: Bool,
     cfgForce :: Bool,
-    cfgOnly :: [Text]
+    cfgOnly :: [ComponentId],
+    cfgPin :: Maybe Pin
   }
   deriving (Show)
 
@@ -87,8 +91,25 @@ instance Default DriverConfig where
         cfgTools = defaultTools,
         cfgDryRun = False,
         cfgForce = False,
-        cfgOnly = []
+        cfgOnly = [],
+        cfgPin = Nothing
       }
+
+-- | Fully resolved configuration: the root is known and every layout
+-- path is absolute. What the bump pipeline consumes.
+data BumpConfig = BumpConfig
+  { bcRoot :: FilePath,
+    bcRulesPath :: FilePath,
+    bcLocksPath :: FilePath,
+    bcBumpLockPath :: FilePath,
+    bcDirtyPaths :: [FilePath],
+    bcTools :: [String],
+    bcDryRun :: Bool,
+    bcForce :: Bool,
+    bcOnly :: [ComponentId],
+    bcPin :: Maybe Pin
+  }
+  deriving (Show)
 
 -- | Merge CLI fields over the config; explicitly given paths are
 -- absolutized here (mirrors nvfetcher absolutizing the keyfile at the
@@ -110,7 +131,7 @@ applyCliOptions cfg cli = do
 -- into root-absolute ones (explicit paths are already absolute from
 -- 'applyCliOptions' and pass through untouched), and derive the
 -- dirty-check paths from the resolved rules/locks paths.
-resolveConfig :: DriverConfig -> IO DriverConfig
+resolveConfig :: DriverConfig -> IO BumpConfig
 resolveConfig cfg = do
   root <- maybe (findRepoRoot defaultRulesRel) pure (cfgRepoRoot cfg)
   let absolve p
@@ -119,15 +140,20 @@ resolveConfig cfg = do
       rulesP = absolve (cfgRulesPath cfg)
       locksP = absolve (cfgLocksPath cfg)
   pure
-    cfg
-      { cfgRepoRoot = Just root,
-        cfgRulesPath = rulesP,
-        cfgLocksPath = locksP,
-        cfgBumpLockPath = absolve (cfgBumpLockPath cfg),
-        cfgDirtyPaths =
+    BumpConfig
+      { bcRoot = root,
+        bcRulesPath = rulesP,
+        bcLocksPath = locksP,
+        bcBumpLockPath = absolve (cfgBumpLockPath cfg),
+        bcDirtyPaths =
           if null (cfgDirtyPaths cfg)
             then [takeDirectory locksP, rulesP]
-            else cfgDirtyPaths cfg
+            else cfgDirtyPaths cfg,
+        bcTools = cfgTools cfg,
+        bcDryRun = cfgDryRun cfg,
+        bcForce = cfgForce cfg,
+        bcOnly = cfgOnly cfg,
+        bcPin = cfgPin cfg
       }
 
 -- | Repo root via git, falling back to walking up from the cwd looking
