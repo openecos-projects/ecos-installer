@@ -31,8 +31,6 @@ in
       libs = import ../../lib { inherit lib; };
       semver = libs.semver;
       loadModel = import ../model/model.nix { inherit lib semver; };
-      renderInstaller = import ../release/installer.nix { inherit lib; };
-      renderRegistry = import ../release/registry.nix { inherit lib; };
 
       templatePath = ../../templates/ecc-installer.sh.in;
       toolchain = builtins.fromTOML (builtins.readFile ../toolchain.toml);
@@ -41,11 +39,6 @@ in
         rules = toolchain;
         inherit locks;
       };
-      generated = renderInstaller {
-        template = builtins.readFile templatePath;
-        inherit model;
-      };
-      registry = renderRegistry { inherit model; };
     in
     {
       # Make the repo library available as a module argument everywhere,
@@ -58,20 +51,10 @@ in
           toolchain
           locks
           model
-          generated
-          registry
           ;
         template = builtins.readFile templatePath;
-        eccInstaller = pkgs.writeTextFile {
-          name = "ecc-installer.sh";
-          executable = true;
-          text = generated;
-          checkPhase = ''
-            ${pkgs.dash}/bin/dash -n "$target"
-            ${pkgs.bash}/bin/bash -n "$target"
-          '';
-        };
-        toolRegistry = pkgs.writeText "tool-registry.json" (builtins.toJSON registry);
+        # generated/registry/eccInstaller/toolRegistry are computed by the
+        # render module (nix/modules/render.nix)
       };
     };
 }

@@ -2,9 +2,8 @@
   pkgs,
   lib,
   publish,
-  renderInstaller,
   loadModel,
-  template,
+  text,
   toolchain,
   locks,
   publishDecide,
@@ -15,7 +14,6 @@ let
     rules = toolchain;
     inherit locks;
   };
-  text = renderInstaller { inherit template model; };
   older = builtins.replaceStrings [ "0.1.0-alpha.11" ] [ "0.1.0-alpha.10" ] text;
   sameVerDiff = builtins.replaceStrings [ "MIN_GLIBC_MAJOR=\"2\"" ] [ "MIN_GLIBC_MAJOR=\"9\"" ] text;
   malformed = "not an installer\n";
@@ -59,8 +57,8 @@ pkgs.runCommand "ecos-release-publish-check" { } ''
   # read-only.
   export NIX_STATE_DIR="$work/nixstate"
   mkdir -p "$NIX_STATE_DIR"
-  # The publish-decide CLI evaluates nix/release/decide-cli.nix at run time; this
-  # covers its import graph (lib/semver.nix, nix/release/publish.nix), which the
+  # The publish-decide CLI evaluates nix/tools/decide-cli.nix at run time; this
+  # covers its import graph (lib/semver.nix, lib/publish.nix), which the
   # pure-eval tests above cannot reach.
   printf 'ECC_VERSION="0.1.0-alpha.11"\n' >"$work/cur.sh"
   printf 'ECC_VERSION="0.1.0-alpha.12"\n' >"$work/cand.sh"

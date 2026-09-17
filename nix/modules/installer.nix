@@ -15,8 +15,7 @@
       ecos = config.ecos;
       semver = libs.semver;
       loadModel = import ../model/model.nix { inherit lib semver; };
-      renderInstaller = import ../release/installer.nix { inherit lib; };
-      publish = import ../release/publish.nix { inherit lib semver; };
+      publish = libs.publish;
 
       publishDecide = pkgs.writeShellApplication {
         name = "publish-decide";
@@ -28,7 +27,7 @@
             --arg pkgsPath ${pkgs.path} \
             --argstr currentFile "$current" \
             --argstr candidateFile "$candidate" \
-            ${../..}/nix/release/decide-cli.nix | tr -d '"\n '
+            ${../..}/nix/tools/decide-cli.nix | tr -d '"\n '
         '';
       };
 
@@ -72,10 +71,10 @@
             pkgs
             semver
             loadModel
-            renderInstaller
             publish
             ;
-          inherit (ecos) template toolchain locks;
+          inherit (ecos) toolchain locks;
+          text = ecos.generated;
         };
         semver = import ../tests/semver.nix { inherit pkgs semver; };
         archive = import ../tests/archive.nix { inherit pkgs; };
@@ -84,11 +83,11 @@
             pkgs
             lib
             publish
-            renderInstaller
             loadModel
             publishDecide
             ;
-          inherit (ecos) template toolchain locks;
+          inherit (ecos) toolchain locks;
+          text = ecos.generated;
         };
         installer-syntax = installerChecks.syntax;
         installer-e2e = installerChecks.e2e;
