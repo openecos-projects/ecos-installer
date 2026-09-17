@@ -70,7 +70,7 @@ jobs:
           body="$(mktemp)"
           {
             echo "Automated version-lock bump from"
-            echo "[ecos-release](https://github.com/Emin017/ecos-release)."
+            echo "[ecos-release](https://github.com/openecos-projects/ecos-installer)."
             echo
             echo '```'
             grep -E "^(Up to date|Changes:|[a-zA-Z_].*: )" bump.log || true
