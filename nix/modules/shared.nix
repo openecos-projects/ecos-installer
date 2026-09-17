@@ -31,8 +31,8 @@ in
       libs = import ../../lib { inherit lib; };
       semver = libs.semver;
       loadModel = import ../model/model.nix { inherit lib semver; };
-      generate = import ../projections/generate.nix { inherit lib; };
-      generateRegistry = import ../projections/generate-registry.nix { inherit lib; };
+      generate = import ../release/generate.nix { inherit lib; };
+      generateRegistry = import ../release/generate-registry.nix { inherit lib; };
 
       templatePath = ../../templates/ecc-installer.sh.in;
       toolchain = builtins.fromTOML (builtins.readFile ../toolchain.toml);

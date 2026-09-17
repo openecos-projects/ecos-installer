@@ -15,8 +15,8 @@
       libs = import ../../lib { inherit lib; };
       semver = libs.semver;
       loadModel = import ../model/model.nix { inherit lib semver; };
-      generate = import ../projections/generate.nix { inherit lib; };
-      publish = import ../projections/publish.nix { inherit lib semver; };
+      generate = import ../release/generate.nix { inherit lib; };
+      publish = import ../release/publish.nix { inherit lib semver; };
 
       publishDecide = pkgs.writeShellApplication {
         name = "publish-decide";
@@ -28,7 +28,7 @@
             --arg pkgsPath ${pkgs.path} \
             --argstr currentFile "$current" \
             --argstr candidateFile "$candidate" \
-            ${../..}/nix/projections/decide-cli.nix | tr -d '"\n '
+            ${../..}/nix/release/decide-cli.nix | tr -d '"\n '
         '';
       };
 

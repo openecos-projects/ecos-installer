@@ -15,7 +15,7 @@
       libs = import ../../lib { inherit lib; };
       semver = libs.semver;
       loadModel = import ../model/model.nix { inherit lib semver; };
-      generateRegistry = import ../projections/generate-registry.nix { inherit lib; };
+      generateRegistry = import ../release/generate-registry.nix { inherit lib; };
 
       checkRegistryUrls = pkgs.writeShellApplication {
         name = "check-registry-urls";
