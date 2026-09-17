@@ -86,7 +86,7 @@ jobs:
           name: ecc-installer
           path: out/ecc-installer.sh
           # Must outlive the approval wait on installer-deploy.
-          retention-days: 7
+          retention-days: 30
   publish:
     name: Publish to OSS
     needs: [resolve, build]

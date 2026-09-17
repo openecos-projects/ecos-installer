@@ -58,7 +58,7 @@ jobs:
           path: out/tool-registry.json
           # Must outlive the approval wait on registry-deploy; sync-legacy-pr
           # downloads this after the gated deploy.
-          retention-days: 7
+          retention-days: 30
   deploy-pages:
     name: Deploy registry to GitHub Pages
     needs: build
