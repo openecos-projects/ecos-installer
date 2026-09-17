@@ -84,7 +84,7 @@ jobs:
         env:
           SHA: ${{ needs.build.outputs.sha256 }}
         run: |
-          url="https://emin017.github.io/ecos-release/tool-registry.json"
+          url="https://openecos-projects.github.io/ecos-installer/tool-registry.json"
           for attempt in $(seq 1 30); do
             if got="$(curl -fsSL --max-time 20 "$url" | sha256sum | cut -d' ' -f1)" && [ "$got" = "$SHA" ]; then
               echo "new URL serves sha256 $got"
@@ -150,7 +150,7 @@ jobs:
             echo "Artifact sha256: \`$SHA\`"
             echo
             echo "Merging keeps the legacy URL byte-identical with"
-            echo "https://emin017.github.io/ecos-release/tool-registry.json."
+            echo "https://openecos-projects.github.io/ecos-installer/tool-registry.json."
           } > "$body"
           existing="$(gh pr list --repo Emin017/ecos-registry --head bot/tool-registry-sync \
             --state open --json number --jq 'if length > 0 then .[0].number else empty end')"

@@ -75,7 +75,7 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 
 Two URLs serve the same bytes during the transition:
 
-- New: `https://emin017.github.io/ecos-release/tool-registry.json`
+- New: `https://openecos-projects.github.io/ecos-installer/tool-registry.json`
 - Legacy: `https://emin017.github.io/ecos-registry/tool-registry.json` (still hardcoded in released Studio builds)
 
 `publish-registry.yml` runs on every push to main that touches `nix/**`, `lib/**`, `flake.nix`, or the workflow itself: it builds the JSON, deploys it to GitHub Pages, polls the new URL until it serves the built sha256, then force-pushes the fixed branch `bot/tool-registry-sync` in `Emin017/ecos-registry` and opens or updates a pull request whose body carries the artifact sha256. Runs without changes do nothing. The workflow needs the repository secret `REGISTRY_SYNC_TOKEN`: a fine-grained PAT scoped to `Emin017/ecos-registry` only, with Contents: read and write plus Pull requests: read and write. GitHub Pages source must be set to GitHub Actions.

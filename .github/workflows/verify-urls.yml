@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Compare URL checksums
         run: |
-          new="$(curl -fsSL --max-time 60 https://emin017.github.io/ecos-release/tool-registry.json | sha256sum | cut -d' ' -f1)"
+          new="$(curl -fsSL --max-time 60 https://openecos-projects.github.io/ecos-installer/tool-registry.json | sha256sum | cut -d' ' -f1)"
           old="$(curl -fsSL --max-time 60 https://emin017.github.io/ecos-registry/tool-registry.json | sha256sum | cut -d' ' -f1)"
           echo "new=$new"
           echo "old=$old"
