@@ -120,7 +120,7 @@ jobs:
         env:
           OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
-          OSS_BUCKET: ecc-install-script
-          OSS_ENDPOINT: oss-cn-beijing.aliyuncs.com
-          OSS_PUBLIC_BASE: https://ecc-install-script.oss-cn-beijing.aliyuncs.com
+          OSS_BUCKET: ${{ vars.OSS_BUCKET }}
+          OSS_ENDPOINT: ${{ vars.OSS_ENDPOINT }}
+          OSS_PUBLIC_BASE: ${{ vars.OSS_PUBLIC_BASE }}
         run: nix run .#publish-oss -- artifact/ecc-installer.sh

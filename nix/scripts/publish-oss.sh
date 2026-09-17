@@ -4,9 +4,11 @@ set -euo pipefail
 : "${OSS_ACCESS_KEY_ID:?}"
 : "${OSS_ACCESS_KEY_SECRET:?}"
 : "${PUBLISH_DECIDE:?}"
-OSS_BUCKET="${OSS_BUCKET:-ecc-install-script}"
-OSS_ENDPOINT="${OSS_ENDPOINT:-oss-cn-beijing.aliyuncs.com}"
-OSS_PUBLIC_BASE="${OSS_PUBLIC_BASE:-https://ecc-install-script.oss-cn-beijing.aliyuncs.com}"
+# Bucket coordinates are deployment configuration, not code: CI injects them
+# from repository variables.
+: "${OSS_BUCKET:?}"
+: "${OSS_ENDPOINT:?}"
+: "${OSS_PUBLIC_BASE:?}"
 
 arg="${1:-}"
 if [[ -n $arg && -f $arg ]]; then
