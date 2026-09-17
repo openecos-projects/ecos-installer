@@ -6,7 +6,7 @@
 
 let
   lib = import (pkgsPath + "/lib");
-  semver = import ./semver.nix { inherit lib; };
+  semver = import ../lib/semver.nix { inherit lib; };
   publish = import ./publish.nix { inherit lib semver; };
   current = if currentFile == "" then null else builtins.readFile (/. + currentFile);
   candidate = builtins.readFile (/. + candidateFile);

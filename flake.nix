@@ -61,7 +61,7 @@
             --arg pkgsPath ${pkgs.path} \
             --argstr currentFile "$current" \
             --argstr candidateFile "$candidate" \
-            ${./nix/decide-cli.nix} | tr -d '"\n '
+            ${self}/nix/decide-cli.nix | tr -d '"\n '
         '';
       };
 
@@ -173,6 +173,7 @@
             template
             toolchain
             locks
+            publishDecide
             ;
         };
         installer-syntax = installerChecks.syntax;
