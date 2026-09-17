@@ -30,7 +30,7 @@
 
       templatePath = ./templates/ecc-installer.sh.in;
       template = builtins.readFile templatePath;
-      toolchain = builtins.fromTOML (builtins.readFile ./metadata/toolchain.toml);
+      toolchain = builtins.fromTOML (builtins.readFile ./nix/toolchain.toml);
       locks = builtins.fromJSON (builtins.readFile ./nix/_sources/generated.json);
       model = loadModel {
         rules = toolchain;

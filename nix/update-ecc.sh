@@ -4,10 +4,10 @@ set -euo pipefail
 tag="${1:?usage: update-ecc <github-tag>}"
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-toml="$root/metadata/toolchain.toml"
+toml="$root/nix/toolchain.toml"
 locks="$root/nix/_sources/generated.json"
 if [[ ! -f $toml || ! -f $locks ]]; then
-  echo "metadata/toolchain.toml or nix/_sources/generated.json not found (run from the ecos-release checkout)" >&2
+  echo "nix/toolchain.toml or nix/_sources/generated.json not found (run from the ecos-release checkout)" >&2
   exit 1
 fi
 
