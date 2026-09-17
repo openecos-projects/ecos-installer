@@ -48,6 +48,10 @@ in
       registry = renderRegistry { inherit model; };
     in
     {
+      # Make the repo library available as a module argument everywhere,
+      # instead of each domain module re-importing ../../lib.
+      _module.args.libs = libs;
+
       ecos = {
         inherit
           templatePath

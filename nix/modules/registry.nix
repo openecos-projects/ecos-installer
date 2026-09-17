@@ -8,11 +8,11 @@
       config,
       pkgs,
       lib,
+      libs,
       ...
     }:
     let
       ecos = config.ecos;
-      libs = import ../../lib { inherit lib; };
       semver = libs.semver;
       loadModel = import ../model/model.nix { inherit lib semver; };
 
