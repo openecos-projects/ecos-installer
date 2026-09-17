@@ -22,7 +22,9 @@ jobs:
         uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
-            experimental-features = nix-command flakes
+            experimental-features = nix-command flakes pipe-operators
+      - name: Magic Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v15
       - name: Pin ECC tag
         run: nix run .#update-ecc -- ${{ inputs.tag }}
       - name: Run flake checks
