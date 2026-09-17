@@ -71,7 +71,7 @@
           pkgs.jq
           pkgs.coreutils
         ];
-        text = builtins.readFile ./nix/lock-edit.sh;
+        text = builtins.readFile ./nix/scripts/lock-edit.sh;
       };
 
       updateEcc = pkgs.writeShellApplication {
@@ -84,7 +84,7 @@
         ];
         text = ''
           LOCK_EDIT="${lockEdit}/bin/lock-edit"
-          ${builtins.readFile ./nix/update-ecc.sh}
+          ${builtins.readFile ./nix/scripts/update-ecc.sh}
         '';
       };
 
@@ -100,7 +100,7 @@
         text = ''
           export ECC_INSTALLER=${lib.escapeShellArg (toString eccInstaller)}
           export PUBLISH_DECIDE=${lib.escapeShellArg "${publishDecide}/bin/publish-decide"}
-          ${builtins.readFile ./nix/publish-oss.sh}
+          ${builtins.readFile ./nix/scripts/publish-oss.sh}
         '';
       };
 
