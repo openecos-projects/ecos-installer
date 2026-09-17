@@ -14,14 +14,14 @@
       ecos = config.ecos;
       libs = import ../../lib { inherit lib; };
       semver = libs.semver;
-      loadModel = import ../model.nix { inherit lib semver; };
-      generateRegistry = import ../generate-registry.nix { inherit lib; };
+      loadModel = import ../model/model.nix { inherit lib semver; };
+      generateRegistry = import ../projections/generate-registry.nix { inherit lib; };
 
       checkRegistryUrls = pkgs.writeShellApplication {
         name = "check-registry-urls";
         runtimeInputs = [ pkgs.python3 ];
         text = ''
-          exec python3 ${../registry-url-checker.py} "$@"
+          exec python3 ${../tools/registry-url-checker.py} "$@"
         '';
       };
     in
@@ -51,7 +51,7 @@
               nativeBuildInputs = [ pkgs.python3 ];
             }
             ''
-              REGISTRY_URL_CHECKER=${../registry-url-checker.py} \
+              REGISTRY_URL_CHECKER=${../tools/registry-url-checker.py} \
                 python3 ${../tests/test-registry-url-checker.py}
               echo ok > "$out"
             '';

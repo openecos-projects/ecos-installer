@@ -6,7 +6,7 @@
   perSystem =
     { pkgs, lib, ... }:
     let
-      nvfetcher = import ../nvfetcher.nix { inherit pkgs; };
+      nvfetcher = import ../tools/nvfetcher.nix { inherit pkgs; };
 
       # Haskell package set where nvfetcher is our patched library, for
       # linking the driver against it

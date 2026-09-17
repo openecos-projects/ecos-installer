@@ -31,12 +31,12 @@ let
   patchedSrc = pkgs.applyPatches {
     name = "nvfetcher-${rev}-patched";
     inherit src;
-    patches = [ ./patches/nvfetcher-lock-fields.patch ];
+    patches = [ ../patches/nvfetcher-lock-fields.patch ];
     # new test files are kept as plain files next to the patch for
     # readability (nix/patches/nvfetcher/ mirrors the source tree layout)
     postPatch = ''
-      cp ${./patches/nvfetcher/test/SriSpec.hs} test/SriSpec.hs
-      cp ${./patches/nvfetcher/test/PackageResultSpec.hs} test/PackageResultSpec.hs
+      cp ${../patches/nvfetcher/test/SriSpec.hs} test/SriSpec.hs
+      cp ${../patches/nvfetcher/test/PackageResultSpec.hs} test/PackageResultSpec.hs
     '';
   };
 

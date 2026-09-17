@@ -59,8 +59,8 @@ pkgs.runCommand "ecos-release-publish-check" { } ''
   # read-only.
   export NIX_STATE_DIR="$work/nixstate"
   mkdir -p "$NIX_STATE_DIR"
-  # The publish-decide CLI evaluates nix/decide-cli.nix at run time; this
-  # covers its import graph (lib/semver.nix, nix/publish.nix), which the
+  # The publish-decide CLI evaluates nix/projections/decide-cli.nix at run time; this
+  # covers its import graph (lib/semver.nix, nix/projections/publish.nix), which the
   # pure-eval tests above cannot reach.
   printf 'ECC_VERSION="0.1.0-alpha.11"\n' >"$work/cur.sh"
   printf 'ECC_VERSION="0.1.0-alpha.12"\n' >"$work/cand.sh"

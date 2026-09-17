@@ -4,7 +4,7 @@
 [berberman/nvfetcher](https://github.com/berberman/nvfetcher), pinned to
 `e41af9779ea14adf1d8c3edb075713c2668d45b9` (master, which includes the
 prerelease option for the github version source). It is applied by
-`nix/nvfetcher.nix` to build the nvfetcher used by this repository, and exists
+`nix/tools/nvfetcher.nix` to build the nvfetcher used by this repository, and exists
 so that `_sources/generated.json` natively carries the three lock fields the
 registry/installer pipeline needs. Design background:
 `docs/superpowers/plans/2026-09-15-nvfetcher-bump-driver-plan.md`.
@@ -97,6 +97,6 @@ git -C nvfetcher diff > nix/patches/nvfetcher-lock-fields.patch
 To run the patched test suite inside the checkout, copy the extra specs in
 first: `cp nix/patches/nvfetcher/test/*.hs nvfetcher/test/`.
 
-When bumping the upstream pin in `nix/nvfetcher.nix`, update the fetch hash
+When bumping the upstream pin in `nix/tools/nvfetcher.nix`, update the fetch hash
 and make sure the patch still applies — `nix build .#nvfetcher` fails at the
 patch step otherwise.

@@ -14,9 +14,9 @@
       ecos = config.ecos;
       libs = import ../../lib { inherit lib; };
       semver = libs.semver;
-      loadModel = import ../model.nix { inherit lib semver; };
-      generate = import ../generate.nix { inherit lib; };
-      publish = import ../publish.nix { inherit lib semver; };
+      loadModel = import ../model/model.nix { inherit lib semver; };
+      generate = import ../projections/generate.nix { inherit lib; };
+      publish = import ../projections/publish.nix { inherit lib semver; };
 
       publishDecide = pkgs.writeShellApplication {
         name = "publish-decide";
@@ -28,7 +28,7 @@
             --arg pkgsPath ${pkgs.path} \
             --argstr currentFile "$current" \
             --argstr candidateFile "$candidate" \
-            ${../..}/nix/decide-cli.nix | tr -d '"\n '
+            ${../..}/nix/projections/decide-cli.nix | tr -d '"\n '
         '';
       };
 

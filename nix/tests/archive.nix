@@ -1,7 +1,7 @@
 { pkgs }:
 
 let
-  validator = ../archive-validate.py;
+  validator = ./archive-validate.py;
   python = pkgs.python3;
 in
 pkgs.runCommand "ecos-release-archive-check"

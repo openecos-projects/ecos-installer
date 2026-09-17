@@ -7,7 +7,7 @@ let
   # (nix/_sources/generated.json) into the manifest validated below.
   raw = import ./locks.nix { inherit lib rules locks; };
   inherit (semver) parse parseTag;
-  inherit (import ../lib { inherit lib; })
+  inherit (import ../../lib { inherit lib; })
     checkFields
     hexSha
     hasControl
