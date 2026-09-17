@@ -65,7 +65,7 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 | `update-ecc-locks` | `lock-edit` updates one lock entry atomically without touching decoy entries or the canonical formatting; missing entries fail without touching the file |
 | `formatting` | `treefmt` dry-run: nixfmt, ruff, taplo, yamlfmt, shfmt |
 
-`nix develop` provides `treefmt`, `dash`, and `shellcheck`. `nix fmt` runs the same formatters as the `formatting` check.
+`nix develop` provides `treefmt`, `dash`, and `shellcheck`. `nix fmt` runs the same formatters as the `treefmt` check.
 
 ## Tool registry publishing
 
