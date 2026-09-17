@@ -274,6 +274,13 @@
           mutate 's|github = "openecos-projects/ecc"|github = "noslash"|'
           expect_fail bad-src-owner "must look like owner/repo"
 
+          # a synthetic fixture repo drives discovery via --repo-root
+          fixture="$TMPDIR/fixture-repo"
+          mkdir -p "$fixture/nix/_sources"
+          cp ${self}/nix/toolchain.toml "$fixture/nix/toolchain.toml"
+          cp ${self}/nix/_sources/generated.json "$fixture/nix/_sources/generated.json"
+          bump check --repo-root "$fixture" | grep -q "rules and locks: OK"
+
           echo ok > "$out"
         '';
         formatting = treefmtEval.config.build.check self;

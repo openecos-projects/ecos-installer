@@ -4,15 +4,14 @@
 
 -- | Lock-file operations: offline validation of
 -- nix/_sources/generated.json against the rules (set closure, entry shape,
--- cnb consistency, PDK version agreement), atomic write-back, the
--- concurrency lock, and repo-root helpers.
+-- cnb consistency, PDK version agreement), atomic write-back, and the
+-- concurrency lock. Repo-root discovery lives in EcosBump.Config.
 module EcosBump.Locks
   ( validateLockFile,
     readLockSrcs,
     mergeExcluded,
     atomicWriteIfChanged,
     withBumpLock,
-    findRepoRoot,
     isRepoDirty,
   )
 where
@@ -29,9 +28,10 @@ import qualified Data.Map.Strict as Map
 import Data.Scientific (floatingOrInteger)
 import Data.Text (Text)
 import qualified Data.Text as T
+import EcosBump.Config (procDir)
 import EcosBump.Rules
-import System.Directory (createDirectory, doesDirectoryExist, doesFileExist, getCurrentDirectory, removePathForcibly, renameFile)
-import System.FilePath (takeDirectory, (</>))
+import System.Directory (createDirectory, doesDirectoryExist, removePathForcibly, renameFile)
+import System.FilePath ((</>))
 import System.IO.Error (isAlreadyExistsError)
 import System.Posix.Process (getProcessID)
 import System.Process (readProcess)
@@ -193,7 +193,7 @@ withBumpLock lockPath act = do
           mpid <- readPid <$> readFile (lockPath </> "pid") `catch` \(_ :: IOException) -> pure ""
           alive <- case mpid of
             Nothing -> pure False
-            Just pid -> doesDirectoryExist ("/proc/" <> show (pid :: Int))
+            Just pid -> doesDirectoryExist (procDir </> show (pid :: Int))
           if alive
             then ioError (userError ("another bump is running (see " <> lockPath <> ")"))
             else removePathForcibly lockPath >> withBumpLock lockPath act
@@ -203,28 +203,7 @@ withBumpLock lockPath act = do
       [(n, "")] -> Just n
       _ -> Nothing
 
--- | Repo root via git, falling back to walking up from the cwd looking
--- for nix/toolchain.toml.
-findRepoRoot :: IO FilePath
-findRepoRoot = do
-  r <- try @IOException (readProcess "git" ["rev-parse", "--show-toplevel"] "")
-  case r of
-    Right out | not (null (trim out)) -> pure (trim out)
-    _ -> getCurrentDirectory >>= go
-  where
-    trim = T.unpack . T.strip . T.pack
-    go dir = do
-      found <- doesFileExist (dir </> "nix/toolchain.toml")
-      if found
-        then pure dir
-        else
-          let parent = takeDirectory dir
-           in if parent == dir
-                then ioError (userError "cannot locate the repository root (no git, no nix/toolchain.toml found upwards)")
-                else go parent
-
--- | Whether any of the given paths (relative to root) has uncommitted
--- changes.
+-- | Whether any of the given paths has uncommitted changes under root.
 isRepoDirty :: FilePath -> [FilePath] -> IO Bool
 isRepoDirty root paths =
   not . T.null . T.strip . T.pack
