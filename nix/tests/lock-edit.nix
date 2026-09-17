@@ -78,7 +78,7 @@ let
   '';
 
 in
-pkgs.runCommand "ecos-release-update-ecc-locks-check" {
+pkgs.runCommand "ecos-release-lock-edit-check" {
   nativeBuildInputs = [
     pkgs.jq
     pkgs.coreutils

@@ -33,7 +33,7 @@
       };
 
       checks = {
-        registry-generate = import ../tests/registry-generate.nix {
+        registry-render = import ../tests/registry-render.nix {
           inherit
             lib
             pkgs

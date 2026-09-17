@@ -339,7 +339,7 @@ let
     fi
   '';
 in
-pkgs.runCommand "ecos-release-registry-generate-check" { nativeBuildInputs = [ pkgs.jq ]; } ''
+pkgs.runCommand "ecos-release-registry-render-check" { nativeBuildInputs = [ pkgs.jq ]; } ''
   set -euo pipefail
   ${negativeScript}
   ${positiveScript}

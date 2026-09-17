@@ -79,7 +79,7 @@ let
     }
   );
 in
-pkgs.runCommand "ecos-release-generate-check" { } ''
+pkgs.runCommand "ecos-release-installer-render-check" { } ''
   set -euo pipefail
   ${lib.optionalString (semver.compare v10 v11 >= 0) "echo 'semver alpha.10 !< alpha.11' >&2; exit 1"}
   ${lib.optionalString (

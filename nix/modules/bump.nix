@@ -78,7 +78,7 @@
       };
 
       checks = {
-        update-ecc-locks = import ../tests/update-ecc.nix {
+        lock-edit = import ../tests/lock-edit.nix {
           inherit pkgs;
           lockEdit = "${lockEdit}/bin/lock-edit";
         };

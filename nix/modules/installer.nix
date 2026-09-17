@@ -66,7 +66,7 @@
       };
 
       checks = {
-        generate = import ../tests/generate.nix {
+        installer-render = import ../tests/installer-render.nix {
           inherit
             lib
             pkgs

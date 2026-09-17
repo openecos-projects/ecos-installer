@@ -55,14 +55,14 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 | check | What it covers |
 |---|---|
 | `semver` | SemVer 2.0.0 order: `0.1.0-alpha.10` < `alpha.11` < `0.1.0`; numeric ident `0`; build metadata ignored |
-| `generate` | Render the installer from the current TOML; reject darwin / empty Liberty lists; no leftover placeholders |
+| `installer-render` | Render the installer from the current TOML; reject darwin / empty Liberty lists; no leftover placeholders |
 | `publish` | `latest` policy: missing → advance, older → keep, same version + same bytes → keep, same version + different bytes → reject, malformed `ECC_VERSION` → reject |
 | `archive` | `tarfile` safety on synthetic tars: traversal, absolute paths, control characters, escaping links, FIFOs, empty Liberty inventories |
 | `installer-syntax` | `dash -n`, `bash -n`, and `shellcheck -s dash -S error` on the generated script |
 | `installer-e2e` | Fake archives over local HTTP: GitHub success, GitHub failure then CNB, checksum mismatch, unsupported platform, wrapper env, lock, receipt, toolchain fallback |
-| `registry-generate` | Build `tool-registry.json` from the manifest: entity counts, single version per entity, PDK package shape, dependency closure, retired-field rejection, plus negative eval cases for the closed field sets |
+| `registry-render` | Build `tool-registry.json` from the manifest: entity counts, single version per entity, PDK package shape, dependency closure, retired-field rejection, plus negative eval cases for the closed field sets |
 | `registry-url-tests` | Offline unit tests for the URL checker (HEAD with ranged GET fallback, redirect handling, traversal and empty-URL coverage) |
-| `update-ecc-locks` | `lock-edit` updates one lock entry atomically without touching decoy entries or the canonical formatting; missing entries fail without touching the file |
+| `lock-edit` | `lock-edit` updates one lock entry atomically without touching decoy entries or the canonical formatting; missing entries fail without touching the file |
 | `formatting` | `treefmt` dry-run: nixfmt, ruff, taplo, yamlfmt, shfmt |
 
 `nix develop` provides `treefmt`, `dash`, and `shellcheck`. `nix fmt` runs the same formatters as the `treefmt` check.
