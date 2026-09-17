@@ -52,15 +52,13 @@ jobs:
               echo "proceed=true" >> "$GITHUB_OUTPUT"
             fi
           fi
-  publish:
-    name: Validate and publish installer
+  # Check, build, and upload the installer before anyone approves anything, so
+  # the reviewer can download the exact bytes that will be published.
+  build:
+    name: Check and build installer
     needs: resolve
     if: needs.resolve.outputs.proceed == 'true'
     runs-on: ubuntu-latest
-    # Push-triggered (bump merge) runs wait for a required reviewer on the
-    # installer-deploy environment; manual dispatches are approved by the
-    # dispatch itself.
-    environment: ${{ github.event_name == 'push' && 'installer-deploy' || 'installer-manual' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,6 +76,46 @@ jobs:
         run: nix flake check
       - name: Build installer
         run: nix build .#ecc-installer
+      - name: Stage installer artifact
+        run: |
+          mkdir out
+          cp result out/ecc-installer.sh
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecc-installer
+          path: out/ecc-installer.sh
+          # Must outlive the approval wait on installer-deploy.
+          retention-days: 7
+  publish:
+    name: Publish to OSS
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    # Push-triggered (bump merge) runs wait for a required reviewer on the
+    # installer-deploy environment; manual dispatches are approved by the
+    # dispatch itself.
+    environment: ${{ github.event_name == 'push' && 'installer-deploy' || 'installer-manual' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes pipe-operators
+      - name: Magic Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v15
+      - name: Download installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ecc-installer
+          path: artifact
+      # publish-oss derives the tag from the script's ECC_VERSION when given a
+      # file path; keep the lock-to-artifact consistency check explicit.
+      - name: Verify the artifact matches the resolved tag
+        run: |
+          version="$(sed -n 's/^ECC_VERSION="\(.*\)"/\1/p' artifact/ecc-installer.sh | head -n1)"
+          test "v$version" = "${{ needs.resolve.outputs.tag }}"
       - name: Publish to OSS
         env:
           OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
@@ -85,4 +123,4 @@ jobs:
           OSS_BUCKET: ecc-install-script
           OSS_ENDPOINT: oss-cn-beijing.aliyuncs.com
           OSS_PUBLIC_BASE: https://ecc-install-script.oss-cn-beijing.aliyuncs.com
-        run: nix run .#publish-oss -- ${{ needs.resolve.outputs.tag }}
+        run: nix run .#publish-oss -- artifact/ecc-installer.sh

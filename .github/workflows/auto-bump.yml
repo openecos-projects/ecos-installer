@@ -85,7 +85,9 @@ jobs:
             echo "Merging triggers publish-registry, whose Pages deployment waits for"
             echo "approval on the registry-deploy environment. When the ecc lock version"
             echo "changed, it also triggers publish-installer, which waits for approval"
-            echo "on the installer-deploy environment before pushing to OSS."
+            echo "on the installer-deploy environment before pushing to OSS. Both runs"
+            echo "upload the exact bytes to be published as workflow artifacts"
+            echo "(tool-registry, ecc-installer) before the approval gate."
           } > "$body"
           existing="$(gh pr list --head bot/lock-bump \
             --state open --json number --jq 'if length > 0 then .[0].number else empty end')"
