@@ -28,13 +28,13 @@ in
   config.perSystem =
     { pkgs, lib, ... }:
     let
-      libs = import ../../lib { inherit lib; };
+      libs = import ../../../lib { inherit lib; };
       semver = libs.semver;
-      loadModel = import ../model/model.nix { inherit lib semver; };
+      loadModel = import ../../model/model.nix { inherit lib semver; };
 
-      templatePath = ../../templates/ecc-installer.sh.in;
-      toolchain = builtins.fromTOML (builtins.readFile ../toolchain.toml);
-      locks = builtins.fromJSON (builtins.readFile ../_sources/generated.json);
+      templatePath = ../../../templates/ecc-installer.sh.in;
+      toolchain = builtins.fromTOML (builtins.readFile ../../toolchain.toml);
+      locks = builtins.fromJSON (builtins.readFile ../../_sources/generated.json);
       model = loadModel {
         rules = toolchain;
         inherit locks;
@@ -42,7 +42,7 @@ in
     in
     {
       # Make the repo library available as a module argument everywhere,
-      # instead of each domain module re-importing ../../lib.
+      # instead of each domain module re-importing ../../../lib.
       _module.args.libs = libs;
 
       ecos = {
@@ -54,7 +54,7 @@ in
           ;
         template = builtins.readFile templatePath;
         # generated/registry/eccInstaller/toolRegistry are computed by the
-        # render module (nix/modules/render.nix)
+        # render module (nix/modules/core/render.nix)
       };
     };
 }
