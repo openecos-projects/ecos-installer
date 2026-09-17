@@ -1,46 +1,17 @@
 { lib }:
 
+# Render the installer by substituting the @NAME@ placeholders declared in
+# templates/ecc-installer.placeholders.toml (the single source for the
+# token -> model-field mapping; adding a placeholder is a template edit
+# plus one TOML line, no Nix change).
+
 {
   template,
   model,
 }:
 
 let
-  placeholders = [
-    "ECC_VERSION"
-    "ECC_TAG"
-    "ECC_ASSET_NAME"
-    "ECC_SHA256"
-    "ECC_SIZE"
-    "ECC_GITHUB_URL"
-    "ECC_CNB_URL"
-    "MIN_GLIBC_MAJOR"
-    "MIN_GLIBC_MINOR"
-    "OSS_CAD_VERSION"
-    "OSS_CAD_ASSET_NAME"
-    "OSS_CAD_SHA256"
-    "OSS_CAD_URL"
-    "OSS_CAD_CNB_URL"
-    "SIZER_VERSION"
-    "SIZER_ASSET_NAME"
-    "SIZER_SHA256"
-    "SIZER_URL"
-    "SIZER_CNB_URL"
-    "SIZER_CNB_SHA256"
-    "PDK_NAME"
-    "PDK_VERSION"
-    "PDK_BASE_ASSET_NAME"
-    "PDK_BASE_SHA256"
-    "PDK_BASE_URL"
-    "PDK_BASE_CNB_URL"
-    "PDK_BASE_CNB_SHA256"
-    "PDK_TECH_LEF"
-    "PDK_CELL_LEFS"
-    "PDK_ASSET_TABLE"
-    "PDK_LIBERTY_FILES"
-  ];
-
-  joinLines = values: lib.concatStringsSep "\n" values;
+  declared = builtins.fromTOML (builtins.readFile ../../templates/ecc-installer.placeholders.toml);
 
   assetRow =
     a:
@@ -52,44 +23,31 @@ let
       a.dest
     ];
 
-  mapping = {
-    ECC_VERSION = model.ecc.version;
-    ECC_TAG = model.ecc.tag;
-    ECC_ASSET_NAME = model.ecc.name;
-    ECC_SHA256 = model.ecc.sha256;
-    ECC_SIZE = if model.ecc.size == null then "" else toString model.ecc.size;
-    ECC_GITHUB_URL = model.ecc.url;
-    ECC_CNB_URL = model.ecc.cnbUrl;
-    MIN_GLIBC_MAJOR = toString model.platform.minGlibc.major;
-    MIN_GLIBC_MINOR = toString model.platform.minGlibc.minor;
-    OSS_CAD_VERSION = model.ossCadSuite.version;
-    OSS_CAD_ASSET_NAME = model.ossCadSuite.name;
-    OSS_CAD_SHA256 = model.ossCadSuite.sha256;
-    OSS_CAD_URL = model.ossCadSuite.url;
-    OSS_CAD_CNB_URL = model.ossCadSuite.cnbUrl;
-    SIZER_VERSION = model.sizer.version;
-    SIZER_ASSET_NAME = model.sizer.name;
-    SIZER_SHA256 = model.sizer.sha256;
-    SIZER_URL = model.sizer.url;
-    SIZER_CNB_URL = model.sizer.cnbUrl;
-    SIZER_CNB_SHA256 = model.sizer.cnbSha256;
-    PDK_NAME = model.pdk.name;
-    PDK_VERSION = model.pdk.version;
-    PDK_BASE_ASSET_NAME = model.pdk.base.name;
-    PDK_BASE_SHA256 = model.pdk.base.sha256;
-    PDK_BASE_URL = model.pdk.base.url;
-    PDK_BASE_CNB_URL = model.pdk.base.cnbUrl;
-    PDK_BASE_CNB_SHA256 = model.pdk.base.cnbSha256;
-    PDK_TECH_LEF = model.pdk.techLef;
-    PDK_CELL_LEFS = joinLines model.pdk.cellLefs;
-    PDK_ASSET_TABLE = joinLines (map assetRow model.pdk.assets);
-    PDK_LIBERTY_FILES = joinLines model.pdk.libertyFiles;
+  formats = {
+    raw = v: v;
+    int = toString;
+    lines = lib.concatStringsSep "\n";
+    assetTable = assets: lib.concatMapStringsSep "\n" assetRow assets;
   };
 
-  from = map (k: "@${k}@") placeholders;
-  to = map (k: mapping.${k}) placeholders;
+  renderValue =
+    name: spec:
+    let
+      format = spec.format or "raw";
+    in
+    if builtins.hasAttr format formats then
+      formats.${format} (lib.getAttrFromPath (lib.splitString "." spec.path) model)
+    else
+      throw "unknown format for placeholder ${name}: ${format}";
+
+  mapping = lib.mapAttrs' (
+    name: spec: lib.nameValuePair "@${name}@" (renderValue name spec)
+  ) declared;
+
+  from = builtins.attrNames mapping;
+  to = builtins.attrValues mapping;
   rendered = builtins.replaceStrings from to template;
-  leftover = builtins.filter (k: lib.hasInfix "@${k}@" rendered) placeholders;
+  leftover = builtins.filter (k: lib.hasInfix k rendered) from;
   leftoverAny = builtins.any (line: builtins.match ".*@[A-Z][A-Z0-9_]*@.*" line != null) (
     lib.splitString "\n" rendered
   );

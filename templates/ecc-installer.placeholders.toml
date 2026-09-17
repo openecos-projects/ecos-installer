@@ -1,0 +1,39 @@
+# Installer template placeholders: each top-level entry maps an @NAME@ token
+# in ecc-installer.sh.in to a model field (dot-separated path per the model
+# shape in nix/model/) with an optional render format:
+#   raw        - the field as-is (default)
+#   int        - toString
+#   lines      - a list joined with newlines
+#   assetTable - PDK asset list as tab-separated name/sha256/url/cnbUrl-or--/dest rows
+
+ECC_VERSION = { path = "ecc.version" }
+ECC_TAG = { path = "ecc.tag" }
+ECC_ASSET_NAME = { path = "ecc.name" }
+ECC_SHA256 = { path = "ecc.sha256" }
+ECC_SIZE = { path = "ecc.size", format = "int" }
+ECC_GITHUB_URL = { path = "ecc.url" }
+ECC_CNB_URL = { path = "ecc.cnbUrl" }
+MIN_GLIBC_MAJOR = { path = "platform.minGlibc.major", format = "int" }
+MIN_GLIBC_MINOR = { path = "platform.minGlibc.minor", format = "int" }
+OSS_CAD_VERSION = { path = "ossCadSuite.version" }
+OSS_CAD_ASSET_NAME = { path = "ossCadSuite.name" }
+OSS_CAD_SHA256 = { path = "ossCadSuite.sha256" }
+OSS_CAD_URL = { path = "ossCadSuite.url" }
+OSS_CAD_CNB_URL = { path = "ossCadSuite.cnbUrl" }
+SIZER_VERSION = { path = "sizer.version" }
+SIZER_ASSET_NAME = { path = "sizer.name" }
+SIZER_SHA256 = { path = "sizer.sha256" }
+SIZER_URL = { path = "sizer.url" }
+SIZER_CNB_URL = { path = "sizer.cnbUrl" }
+SIZER_CNB_SHA256 = { path = "sizer.cnbSha256" }
+PDK_NAME = { path = "pdk.name" }
+PDK_VERSION = { path = "pdk.version" }
+PDK_BASE_ASSET_NAME = { path = "pdk.base.name" }
+PDK_BASE_SHA256 = { path = "pdk.base.sha256" }
+PDK_BASE_URL = { path = "pdk.base.url" }
+PDK_BASE_CNB_URL = { path = "pdk.base.cnbUrl" }
+PDK_BASE_CNB_SHA256 = { path = "pdk.base.cnbSha256" }
+PDK_TECH_LEF = { path = "pdk.techLef" }
+PDK_CELL_LEFS = { path = "pdk.cellLefs", format = "lines" }
+PDK_ASSET_TABLE = { path = "pdk.assets", format = "assetTable" }
+PDK_LIBERTY_FILES = { path = "pdk.libertyFiles", format = "lines" }
