@@ -6,7 +6,7 @@
   perSystem =
     { pkgs, lib, ... }:
     let
-      nvfetcher = import ../nix/nvfetcher.nix { inherit pkgs; };
+      nvfetcher = import ../nvfetcher.nix { inherit pkgs; };
 
       # Haskell package set where nvfetcher is our patched library, for
       # linking the driver against it
@@ -18,7 +18,7 @@
         );
       });
 
-      ecosBump = haskellPackages.callCabal2nix "ecos-bump" ../hs/ecos-bump { };
+      ecosBump = haskellPackages.callCabal2nix "ecos-bump" ../../hs/ecos-bump { };
 
       bump = pkgs.writeShellApplication {
         name = "bump";
@@ -39,7 +39,7 @@
           pkgs.jq
           pkgs.coreutils
         ];
-        text = builtins.readFile ../nix/scripts/lock-edit.sh;
+        text = builtins.readFile ../scripts/lock-edit.sh;
       };
 
       updateEcc = pkgs.writeShellApplication {
@@ -52,7 +52,7 @@
         ];
         text = ''
           LOCK_EDIT="${lockEdit}/bin/lock-edit"
-          ${builtins.readFile ../nix/scripts/update-ecc.sh}
+          ${builtins.readFile ../scripts/update-ecc.sh}
         '';
       };
     in
@@ -78,7 +78,7 @@
       };
 
       checks = {
-        update-ecc-locks = import ../nix/tests/update-ecc.nix {
+        update-ecc-locks = import ../tests/update-ecc.nix {
           inherit pkgs;
           lockEdit = "${lockEdit}/bin/lock-edit";
         };
@@ -86,14 +86,14 @@
         # on the repo files and fail on each mutated fixture
         toml-schema = pkgs.runCommand "ecos-release-toml-schema-check" { nativeBuildInputs = [ bump ]; } ''
           set -euo pipefail
-          cd ${../.}
+          cd ${../..}
           bump check
 
           work="$TMPDIR/work"
           mkdir -p "$work"
           expect_fail() {
             name="$1"; msg="$2"
-            if bump check --rules "$work/case.toml" --locks ${../.}/nix/_sources/generated.json >"$work/out" 2>&1; then
+            if bump check --rules "$work/case.toml" --locks ${../..}/nix/_sources/generated.json >"$work/out" 2>&1; then
               echo "case $name should have failed" >&2
               exit 1
             fi
@@ -104,7 +104,7 @@
             fi
           }
           mutate() {
-            cp ${../.}/nix/toolchain.toml "$work/case.toml"
+            cp ${../..}/nix/toolchain.toml "$work/case.toml"
             chmod u+w "$work/case.toml"
             sed -i "$1" "$work/case.toml"
           }
@@ -125,8 +125,8 @@
           # a synthetic fixture repo drives discovery via --repo-root
           fixture="$TMPDIR/fixture-repo"
           mkdir -p "$fixture/nix/_sources"
-          cp ${../.}/nix/toolchain.toml "$fixture/nix/toolchain.toml"
-          cp ${../.}/nix/_sources/generated.json "$fixture/nix/_sources/generated.json"
+          cp ${../..}/nix/toolchain.toml "$fixture/nix/toolchain.toml"
+          cp ${../..}/nix/_sources/generated.json "$fixture/nix/_sources/generated.json"
           bump check --repo-root "$fixture" | grep -q "rules and locks: OK"
 
           echo ok > "$out"

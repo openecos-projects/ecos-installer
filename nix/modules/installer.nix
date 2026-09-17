@@ -12,11 +12,11 @@
     }:
     let
       ecos = config.ecos;
-      libs = import ../lib { inherit lib; };
+      libs = import ../../lib { inherit lib; };
       semver = libs.semver;
-      loadModel = import ../nix/model.nix { inherit lib semver; };
-      generate = import ../nix/generate.nix { inherit lib; };
-      publish = import ../nix/publish.nix { inherit lib semver; };
+      loadModel = import ../model.nix { inherit lib semver; };
+      generate = import ../generate.nix { inherit lib; };
+      publish = import ../publish.nix { inherit lib semver; };
 
       publishDecide = pkgs.writeShellApplication {
         name = "publish-decide";
@@ -28,7 +28,7 @@
             --arg pkgsPath ${pkgs.path} \
             --argstr currentFile "$current" \
             --argstr candidateFile "$candidate" \
-            ${../.}/nix/decide-cli.nix | tr -d '"\n '
+            ${../..}/nix/decide-cli.nix | tr -d '"\n '
         '';
       };
 
@@ -44,11 +44,11 @@
         text = ''
           export ECC_INSTALLER=${lib.escapeShellArg (toString ecos.eccInstaller)}
           export PUBLISH_DECIDE=${lib.escapeShellArg "${publishDecide}/bin/publish-decide"}
-          ${builtins.readFile ../nix/scripts/publish-oss.sh}
+          ${builtins.readFile ../scripts/publish-oss.sh}
         '';
       };
 
-      installerChecks = import ../nix/tests/installer.nix {
+      installerChecks = import ../tests/installer.nix {
         inherit pkgs;
         installer = ecos.eccInstaller;
         template = ecos.templatePath;
@@ -66,7 +66,7 @@
       };
 
       checks = {
-        generate = import ../nix/tests/generate.nix {
+        generate = import ../tests/generate.nix {
           inherit
             lib
             pkgs
@@ -77,9 +77,9 @@
             ;
           inherit (ecos) template toolchain locks;
         };
-        semver = import ../nix/tests/semver.nix { inherit pkgs semver; };
-        archive = import ../nix/tests/archive.nix { inherit pkgs; };
-        publish = import ../nix/tests/publish.nix {
+        semver = import ../tests/semver.nix { inherit pkgs semver; };
+        archive = import ../tests/archive.nix { inherit pkgs; };
+        publish = import ../tests/publish.nix {
           inherit
             pkgs
             lib

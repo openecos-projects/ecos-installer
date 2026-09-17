@@ -19,11 +19,7 @@
       systems = [ "x86_64-linux" ];
       imports = [
         treefmt-nix.flakeModule
-        ./flake/shared.nix
-        ./flake/installer.nix
-        ./flake/registry.nix
-        ./flake/bump.nix
-        ./flake/dev.nix
+        ./nix
       ];
     };
 }

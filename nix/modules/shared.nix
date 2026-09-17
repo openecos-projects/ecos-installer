@@ -28,15 +28,15 @@ in
   config.perSystem =
     { pkgs, lib, ... }:
     let
-      libs = import ../lib { inherit lib; };
+      libs = import ../../lib { inherit lib; };
       semver = libs.semver;
-      loadModel = import ../nix/model.nix { inherit lib semver; };
-      generate = import ../nix/generate.nix { inherit lib; };
-      generateRegistry = import ../nix/generate-registry.nix { inherit lib; };
+      loadModel = import ../model.nix { inherit lib semver; };
+      generate = import ../generate.nix { inherit lib; };
+      generateRegistry = import ../generate-registry.nix { inherit lib; };
 
-      templatePath = ../templates/ecc-installer.sh.in;
-      toolchain = builtins.fromTOML (builtins.readFile ../nix/toolchain.toml);
-      locks = builtins.fromJSON (builtins.readFile ../nix/_sources/generated.json);
+      templatePath = ../../templates/ecc-installer.sh.in;
+      toolchain = builtins.fromTOML (builtins.readFile ../toolchain.toml);
+      locks = builtins.fromJSON (builtins.readFile ../_sources/generated.json);
       model = loadModel {
         rules = toolchain;
         inherit locks;
