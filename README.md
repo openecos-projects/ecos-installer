@@ -43,7 +43,7 @@ nix run .#bump -- pin ecc v<tag> # lock ecc to an exact tag for this run
 nix run .#publish-oss -- v<tag>  # PUT the immutable versioned object; advance latest by SemVer 2.0.0
 ```
 
-`bump` rewrites only `nix/_sources/generated.json`; rules and metadata stay hand-edited in `nix/toolchain.toml`. The 6 mutable `-latest` entries are re-prefetched whenever they are inside the selection; entries outside it are carried over untouched. `pin` overrides one component's version source for the run (the publish-installer workflow still uses the older `nix run .#update-ecc` bridge for now). A full bump of the prerelease components (ecc, sizer) needs `GITHUB_TOKEN` (or `GH_TOKEN`) in the environment for nvchecker's GitHub API calls.
+`bump` rewrites only `nix/_sources/generated.json`; rules and metadata stay hand-edited in `nix/toolchain.toml`. The 6 mutable `-latest` entries are re-prefetched whenever they are inside the selection; entries outside it are carried over untouched. `pin` overrides one component's version source for the run (the publish-installer workflow still uses the older `nix run .#update-ecc` bridge for now). A full bump of the prerelease components (ecc, sizer) needs `GITHUB_TOKEN` (or `GH_TOKEN`) in the environment for nvchecker's GitHub API calls. A scheduled workflow (`auto-bump.yml`) runs a full bump daily and opens or updates the `bot/lock-bump` PR when locks drift; the bump run itself gates on `nix flake check` and registry URL checks.
 
 Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET`. A versioned object cannot be overwritten with different bytes. `latest` never moves to an older SemVer.
 

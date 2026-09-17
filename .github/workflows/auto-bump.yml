@@ -1,0 +1,90 @@
+name: Auto-bump toolchain locks
+on:
+  schedule:
+    # 02:17 UTC daily; off the :00/:30 marks
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  bump:
+    name: Bump version locks and open PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      # The shake database lives in the XDG data dir; caching it avoids
+      # re-prefetching every artifact on each run.
+      - name: Cache nvfetcher state
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/nvfetcher
+          key: nvfetcher-${{ github.run_id }}
+          restore-keys: nvfetcher-
+      - name: Run bump
+        env:
+          # nvchecker's github source needs a token for prerelease checks
+          # (ecc, sizer); the default token also covers rate limits
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nix run .#bump 2>&1 | tee bump.log
+      - name: Detect changes
+        id: diff
+        run: |
+          if git diff --quiet -- nix/_sources/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "locks already up to date; nothing to do"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      # The bump job itself gates the result, because PRs opened with the
+      # default GITHUB_TOKEN do not trigger PR workflows.
+      - name: Run flake checks
+        if: steps.diff.outputs.changed == 'true'
+        run: nix flake check
+      - name: Check registry URLs
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          nix build .#tool-registry
+          nix run .#check-registry-urls -- result
+      - name: Push bump branch
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B bot/lock-bump
+          git commit -am "chore: bump toolchain version locks"
+          git push --force origin bot/lock-bump
+      - name: Create or update pull request
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          body="$(mktemp)"
+          {
+            echo "Automated version-lock bump from"
+            echo "[ecos-release](https://github.com/Emin017/ecos-release)."
+            echo
+            echo '```'
+            grep -E "^(Up to date|Changes:|[a-zA-Z_].*: )" bump.log || true
+            echo '```'
+            echo
+            echo '```'
+            git diff --stat HEAD~1
+            echo '```'
+            echo
+            echo "nix flake check and registry URL checks passed in the bump run."
+          } > "$body"
+          existing="$(gh pr list --head bot/lock-bump \
+            --state open --json number --jq 'if length > 0 then .[0].number else empty end')"
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --body-file "$body"
+          else
+            gh pr create --base main --head bot/lock-bump \
+              --title "chore: bump toolchain version locks" --body-file "$body"
+          fi
