@@ -63,7 +63,7 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 | `registry-render` | Build `tool-registry.json` from the manifest: entity counts, single version per entity, PDK package shape, dependency closure, retired-field rejection, plus negative eval cases for the closed field sets |
 | `registry-url-tests` | Offline unit tests for the URL checker (HEAD with ranged GET fallback, redirect handling, traversal and empty-URL coverage) |
 | `lock-edit` | `lock-edit` updates one lock entry atomically without touching decoy entries or the canonical formatting; missing entries fail without touching the file |
-| `formatting` | `treefmt` dry-run: nixfmt, ruff, taplo, yamlfmt, shfmt |
+| `treefmt` | `treefmt` dry-run: nixfmt, ruff, taplo, yamlfmt, shfmt |
 
 `nix develop` provides `treefmt`, `dash`, and `shellcheck`. `nix fmt` runs the same formatters as the `treefmt` check.
 
