@@ -1,9 +1,9 @@
 { lib }:
 
 # Render the installer by substituting the @NAME@ placeholders declared in
-# templates/ecc-installer.placeholders.toml (the single source for the
-# token -> model-field mapping; adding a placeholder is a template edit
-# plus one TOML line, no Nix change).
+# ./placeholders.toml (the single source for the token -> model-field
+# mapping; adding a placeholder is a template edit plus one TOML line, no
+# other Nix change).
 
 {
   template,
@@ -11,7 +11,7 @@
 }:
 
 let
-  declared = builtins.fromTOML (builtins.readFile ../../templates/ecc-installer.placeholders.toml);
+  declared = builtins.fromTOML (builtins.readFile ./placeholders.toml);
 
   assetRow =
     a:
