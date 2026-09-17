@@ -31,8 +31,8 @@ in
       libs = import ../../lib { inherit lib; };
       semver = libs.semver;
       loadModel = import ../model/model.nix { inherit lib semver; };
-      generate = import ../release/generate.nix { inherit lib; };
-      generateRegistry = import ../release/generate-registry.nix { inherit lib; };
+      renderInstaller = import ../release/installer.nix { inherit lib; };
+      renderRegistry = import ../release/registry.nix { inherit lib; };
 
       templatePath = ../../templates/ecc-installer.sh.in;
       toolchain = builtins.fromTOML (builtins.readFile ../toolchain.toml);
@@ -41,11 +41,11 @@ in
         rules = toolchain;
         inherit locks;
       };
-      generated = generate {
+      generated = renderInstaller {
         template = builtins.readFile templatePath;
         inherit model;
       };
-      registry = generateRegistry { inherit model; };
+      registry = renderRegistry { inherit model; };
     in
     {
       ecos = {

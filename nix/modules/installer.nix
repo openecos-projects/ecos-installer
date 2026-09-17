@@ -15,7 +15,7 @@
       libs = import ../../lib { inherit lib; };
       semver = libs.semver;
       loadModel = import ../model/model.nix { inherit lib semver; };
-      generate = import ../release/generate.nix { inherit lib; };
+      renderInstaller = import ../release/installer.nix { inherit lib; };
       publish = import ../release/publish.nix { inherit lib semver; };
 
       publishDecide = pkgs.writeShellApplication {
@@ -72,7 +72,7 @@
             pkgs
             semver
             loadModel
-            generate
+            renderInstaller
             publish
             ;
           inherit (ecos) template toolchain locks;
@@ -84,7 +84,7 @@
             pkgs
             lib
             publish
-            generate
+            renderInstaller
             loadModel
             publishDecide
             ;

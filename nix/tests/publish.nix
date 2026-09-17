@@ -2,7 +2,7 @@
   pkgs,
   lib,
   publish,
-  generate,
+  renderInstaller,
   loadModel,
   template,
   toolchain,
@@ -15,7 +15,7 @@ let
     rules = toolchain;
     inherit locks;
   };
-  text = generate { inherit template model; };
+  text = renderInstaller { inherit template model; };
   older = builtins.replaceStrings [ "0.1.0-alpha.11" ] [ "0.1.0-alpha.10" ] text;
   sameVerDiff = builtins.replaceStrings [ "MIN_GLIBC_MAJOR=\"2\"" ] [ "MIN_GLIBC_MAJOR=\"9\"" ] text;
   malformed = "not an installer\n";

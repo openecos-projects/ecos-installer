@@ -2,7 +2,6 @@
   lib,
   pkgs,
   loadModel,
-  generateRegistry,
   registry,
   registryJson,
   toolchain,

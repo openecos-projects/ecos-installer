@@ -3,7 +3,7 @@
   pkgs,
   semver,
   loadModel,
-  generate,
+  renderInstaller,
   publish,
   template,
   toolchain,
@@ -16,7 +16,7 @@ let
     inherit locks;
   };
   model = loadModel sources;
-  text = generate { inherit template model; };
+  text = renderInstaller { inherit template model; };
   v10 = semver.parse "0.1.0-alpha.10";
   v11 = semver.parse "0.1.0-alpha.11";
   vRelease = semver.parse "0.1.0";

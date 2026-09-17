@@ -15,7 +15,6 @@
       libs = import ../../lib { inherit lib; };
       semver = libs.semver;
       loadModel = import ../model/model.nix { inherit lib semver; };
-      generateRegistry = import ../release/generate-registry.nix { inherit lib; };
 
       checkRegistryUrls = pkgs.writeShellApplication {
         name = "check-registry-urls";
@@ -39,7 +38,6 @@
             lib
             pkgs
             loadModel
-            generateRegistry
             ;
           inherit (ecos) toolchain locks;
           registry = ecos.registry;
