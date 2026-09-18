@@ -59,13 +59,13 @@ jobs:
           # Must outlive the approval wait on registry-deploy; sync-legacy-pr
           # downloads this after the gated deploy.
           retention-days: 30
-  deploy-pages:
-    name: Deploy registry to GitHub Pages
+  deploy:
+    name: Deploy registry to Pages and OSS
     needs: build
     runs-on: ubuntu-latest
     # Publishes triggered by a bot/lock-bump merge wait for a required
     # reviewer on the registry-deploy environment; everything else keeps
-    # the plain github-pages environment.
+    # the plain github-pages environment. One approval covers both targets.
     environment:
       name: "${{ (contains(github.event.head_commit.message, 'bot/lock-bump') || startsWith(github.event.head_commit.message, 'chore: bump toolchain version locks')) && 'registry-deploy' || 'github-pages' }}"
       url: ${{ steps.deployment.outputs.page_url }}
@@ -75,9 +75,49 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes pipe-operators
+      - name: Magic Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v15
+      - name: Download registry artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tool-registry
+          path: artifact
+      - name: Verify artifact checksum
+        env:
+          SHA: ${{ needs.build.outputs.sha256 }}
+        run: echo "$SHA  artifact/tool-registry.json" | sha256sum -c -
+      - name: Publish registry to OSS
+        env:
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
+          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+          OSS_PUBLIC_BASE: ${{ secrets.OSS_PUBLIC_BASE }}
+        run: nix run .#publish-registry-oss -- artifact/tool-registry.json
+      - name: Poll the OSS URL for the built checksum
+        env:
+          SHA: ${{ needs.build.outputs.sha256 }}
+        run: |
+          url="https://release.openecos.com/tools/registry.json"
+          for attempt in $(seq 1 30); do
+            if got="$(curl -fsSL --max-time 20 "$url" | sha256sum | cut -d' ' -f1)" && [ "$got" = "$SHA" ]; then
+              echo "OSS URL serves sha256 $got"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "OSS URL did not serve sha256 $SHA within 5 minutes" >&2
+          exit 1
   verify-new:
     name: Verify new URL serves the built bytes
-    needs: [build, deploy-pages]
+    needs: [build, deploy]
     runs-on: ubuntu-latest
     steps:
       - name: Poll the new URL for the built checksum

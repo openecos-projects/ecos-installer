@@ -41,6 +41,7 @@ nix run .#bump -- --only slang   # bump one component exactly (others stay untou
 nix run .#bump -- --dry-run      # report drift without writing
 nix run .#bump -- pin ecc v<tag> # lock ecc to an exact tag for this run
 nix run .#publish-oss -- v<tag>  # PUT the immutable versioned object; advance latest by SemVer 2.0.0
+nix run .#publish-registry-oss   # PUT the registry as the mutable tools/registry.json object; verify the anonymous read
 ```
 
 `bump` rewrites only `nix/_sources/generated.json`; rules and metadata stay hand-edited in `nix/toolchain.toml`. The 6 mutable `-latest` entries are re-prefetched whenever they are inside the selection; entries outside it are carried over untouched. `pin` overrides one component's version source for the run (the publish-installer workflow still uses the older `nix run .#update-ecc` bridge for now). A full bump of the prerelease components (ecc, sizer) needs `GITHUB_TOKEN` (or `GH_TOKEN`) in the environment for nvchecker's GitHub API calls. A scheduled workflow (`auto-bump.yml`) runs a full bump daily and opens or updates the `bot/lock-bump` PR when locks drift; the bump run itself gates on `nix flake check` and registry URL checks.
@@ -73,17 +74,18 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 
 `nix/toolchain.toml` (rules) and `nix/_sources/generated.json` (locks) are the single source of truth for both the installer and the ECOS Studio registry. `nix build .#tool-registry` projects the merged model to `tool-registry.json` (`schema_version` 2; the PDK entry is a base lock plus a `packages` array; the sizer is installer-only and never appears).
 
-Two URLs serve the same bytes during the transition:
+Three URLs serve the same bytes:
 
-- New: `https://openecos-projects.github.io/ecos-installer/tool-registry.json`
+- Canonical: `https://release.openecos.com/tools/registry.json` (OSS bucket; new Studio builds should use this)
+- GitHub Pages: `https://openecos-projects.github.io/ecos-installer/tool-registry.json`
 - Legacy: `https://emin017.github.io/ecos-registry/tool-registry.json` (still hardcoded in released Studio builds)
 
-`publish-registry.yml` runs on every push to main that touches `nix/**`, `lib/**`, `flake.nix`, or the workflow itself: it builds the JSON, deploys it to GitHub Pages, polls the new URL until it serves the built sha256, then force-pushes the fixed branch `bot/tool-registry-sync` in `Emin017/ecos-registry` and opens or updates a pull request whose body carries the artifact sha256. Runs without changes do nothing. The workflow needs the repository secret `REGISTRY_SYNC_TOKEN`: a fine-grained PAT scoped to `Emin017/ecos-registry` only, with Contents: read and write plus Pull requests: read and write. GitHub Pages source must be set to GitHub Actions.
+`publish-registry.yml` runs on every push to main that touches `nix/**`, `lib/**`, `flake.nix`, or the workflow itself: it builds the JSON, deploys it to GitHub Pages, publishes the same bytes to the OSS bucket (`nix run .#publish-registry-oss`, a mutable `tools/registry.json` object verified by anonymous read-back, like `installers/ecc/latest`), polls both the OSS and Pages URLs until they serve the built sha256, then force-pushes the fixed branch `bot/tool-registry-sync` in `Emin017/ecos-registry` and opens or updates a pull request whose body carries the artifact sha256. Runs without changes do nothing. The OSS publish reads the same five `OSS_*` repository secrets as the installer publish. The workflow needs the repository secret `REGISTRY_SYNC_TOKEN`: a fine-grained PAT scoped to `Emin017/ecos-registry` only, with Contents: read and write plus Pull requests: read and write. GitHub Pages source must be set to GitHub Actions.
 
-Publishes triggered by a merged `bot/lock-bump` PR deploy on the `registry-deploy` environment instead of the plain `github-pages` one — configure a required reviewer on it in the repository settings so an auto-bump merge pauses for approval before anything is published. The built JSON is uploaded as the `tool-registry` workflow artifact in the ungated build job, so the exact bytes are downloadable from the run page before approving.
+Publishes triggered by a merged `bot/lock-bump` PR deploy on the `registry-deploy` environment instead of the plain `github-pages` one — configure a required reviewer on it in the repository settings so an auto-bump merge pauses for approval before anything is published; the single approval covers both the Pages and OSS publishes. The built JSON is uploaded as the `tool-registry` workflow artifact in the ungated build job, so the exact bytes are downloadable from the run page before approving.
 
-`verify-urls.yml` runs daily and fails when the two URLs stop serving identical bytes (for example while a sync PR waits for review). `check.yml` runs `nix flake check` and probes every download URL on PRs and pushes to main.
+`verify-urls.yml` runs daily and fails when the three URLs stop serving identical bytes (for example while a sync PR waits for review). `check.yml` runs `nix flake check` and probes every download URL on PRs and pushes to main.
 
-Rollback: revert the offending commit on main and re-run `publish-registry.yml` — both URLs converge on the previous artifact. In an emergency, revert `tool-registry.json` directly in `ecos-registry` main; the next sync PR restores the generated version. If a sync PR sits unmerged, the legacy URL stays on the old bytes and `verify-urls` fails until it merges.
+Rollback: revert the offending commit on main and re-run `publish-registry.yml` — all three URLs converge on the previous artifact. In an emergency, revert `tool-registry.json` directly in `ecos-registry` main; the next sync PR restores the generated version. If a sync PR sits unmerged, the legacy URL stays on the old bytes and `verify-urls` fails until it merges.
 
 Bumps: `nix run .#bump` refreshes every lock entry; `nix run .#bump -- pin ecc v<tag>` locks an exact ecc tag. `mpc-frame` tracks its upstream branch automatically on every full bump (its published version advances from the 0.1.0 seed to the commit form).
