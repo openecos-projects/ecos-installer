@@ -82,7 +82,7 @@ jobs:
             echo
             echo "nix flake check and registry URL checks passed in the bump run."
             echo
-            echo "Merging triggers publish-registry, whose Pages deployment waits for"
+            echo "Merging triggers publish-registry, whose OSS publication waits for"
             echo "approval on the registry-deploy environment. When the ecc lock version"
             echo "changed, it also triggers publish-installer, which waits for approval"
             echo "on the installer-deploy environment before pushing to OSS. Both runs"
