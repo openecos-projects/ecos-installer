@@ -23,13 +23,35 @@
           exec python3 ${../tools/registry-url-checker.py} "$@"
         '';
       };
+
+      publishRegistryOss = pkgs.writeShellApplication {
+        name = "publish-registry-oss";
+        runtimeInputs = [
+          pkgs.curl
+          pkgs.openssl
+          pkgs.coreutils
+          pkgs.diffutils
+          pkgs.gnused
+        ];
+        text = ''
+          export TOOL_REGISTRY=${lib.escapeShellArg (toString ecos.toolRegistry)}
+          ${builtins.readFile ../scripts/oss-lib.sh}
+          ${builtins.readFile ../scripts/publish-registry-oss.sh}
+        '';
+      };
     in
     {
       packages.tool-registry = ecos.toolRegistry;
 
-      apps.check-registry-urls = {
-        type = "app";
-        program = "${checkRegistryUrls}/bin/check-registry-urls";
+      apps = {
+        check-registry-urls = {
+          type = "app";
+          program = "${checkRegistryUrls}/bin/check-registry-urls";
+        };
+        publish-registry-oss = {
+          type = "app";
+          program = "${publishRegistryOss}/bin/publish-registry-oss";
+        };
       };
 
       checks = {
