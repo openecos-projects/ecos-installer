@@ -86,6 +86,6 @@ Publishes triggered by a merged `bot/lock-bump` PR deploy on the `registry-deplo
 
 `verify-urls.yml` runs daily and fails when the three URLs stop serving identical bytes (for example while a sync PR waits for review). `check.yml` runs `nix flake check` and probes every download URL on PRs and pushes to main.
 
-Rollback: revert the offending commit on main and re-run `publish-registry.yml` — all three URLs converge on the previous artifact. In an emergency, revert `tool-registry.json` directly in `ecos-registry` main; the next sync PR restores the generated version. If a sync PR sits unmerged, the legacy URL stays on the old bytes and `verify-urls` fails until it merges.
+Rollback: revert the offending commit on main and re-run `publish-registry.yml` — the OSS and Pages URLs converge on the previous artifact immediately, and the legacy URL follows once the resulting sync PR is merged. In an emergency, revert `tool-registry.json` directly in `ecos-registry` main; the next sync PR restores the generated version. If a sync PR sits unmerged, the legacy URL stays on the old bytes and `verify-urls` fails until it merges.
 
 Bumps: `nix run .#bump` refreshes every lock entry; `nix run .#bump -- pin ecc v<tag>` locks an exact ecc tag. `mpc-frame` tracks its upstream branch automatically on every full bump (its published version advances from the 0.1.0 seed to the commit form).
