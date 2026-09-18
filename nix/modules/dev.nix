@@ -16,6 +16,7 @@
         programs.taplo.enable = true;
         programs.yamlfmt.enable = true;
         programs.shfmt.enable = true;
+        programs.ormolu.enable = true;
 
         # POSIX installer template uses @PLACEHOLDER@ tokens; leave it alone.
         settings.formatter.shfmt.excludes = [ "templates/*" ];

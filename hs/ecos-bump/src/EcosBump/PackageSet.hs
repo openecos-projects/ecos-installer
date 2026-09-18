@@ -34,7 +34,9 @@ buildPackageSet entries mpin selection lockSrcs = mapM_ defineEntry entries
       case (eNeedsCnb e, eCnbUrlTemplate e) of
         (True, Just t) ->
           define
-            ( ( package (unComponentId (eId e)) `src` versionSource e `fetch` fetcherFor e
+            ( ( package (unComponentId (eId e))
+                  `src` versionSource e
+                  `fetch` fetcherFor e
                   `fetchCnb` (\(Version v) -> interpolate t v (applyVersionMap (eVersionMap e) v))
               )
                 `andThen` pure forceVal

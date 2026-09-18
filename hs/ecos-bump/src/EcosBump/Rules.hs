@@ -224,7 +224,7 @@ loadRules path = do
     Right d -> pure d
   mapM_ (ioError . userError) $ do
     let extraTop = filter (`notElem` knownSections) (Map.keys (Map.delete "pdk_pkg" doc))
-    [ "unknown top-level section(s): " <> intercalate ", " (map T.unpack extraTop) | not (null extraTop) ]
+    ["unknown top-level section(s): " <> intercalate ", " (map T.unpack extraTop) | not (null extraTop)]
   entries <- either (ioError . userError) pure $ do
     platform <- reqTable "platform" doc "platform"
     closedSet "platform" platformRuleFields platform
