@@ -12,9 +12,15 @@ set -euo pipefail
 : "${OSS_ENDPOINT:?}"
 : "${OSS_PUBLIC_BASE:?}"
 
-arg="${1:-}"
-if [[ -n $arg && -f $arg ]]; then
-  registry="$arg"
+if [[ $# -gt 1 ]]; then
+  echo "usage: publish-registry-oss [tool-registry.json]" >&2
+  exit 1
+elif [[ $# -eq 1 ]]; then
+  registry="$1"
+  if [[ ! -f $registry ]]; then
+    echo "registry file not found: $registry" >&2
+    exit 1
+  fi
 elif [[ -n ${TOOL_REGISTRY:-} ]]; then
   registry="$TOOL_REGISTRY"
 else
