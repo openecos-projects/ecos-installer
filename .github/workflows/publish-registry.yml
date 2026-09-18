@@ -14,8 +14,6 @@ concurrency:
   cancel-in-progress: false
 permissions:
   contents: read
-  pages: write
-  id-token: write
 jobs:
   build:
     name: Build registry JSON
@@ -39,14 +37,6 @@ jobs:
       - name: Record output checksum
         id: hash
         run: echo "sha256=$(sha256sum result | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-      - name: Stage pages artifact
-        run: |
-          mkdir site
-          cp result site/tool-registry.json
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
       - name: Stage registry artifact
         run: |
           mkdir out
@@ -60,15 +50,16 @@ jobs:
           # downloads this after the gated deploy.
           retention-days: 30
   deploy:
-    name: Deploy registry to Pages and OSS
+    name: Publish registry to OSS
     needs: build
     runs-on: ubuntu-latest
     # Publishes triggered by a bot/lock-bump merge wait for a required
-    # reviewer on the registry-deploy environment; everything else keeps
-    # the plain github-pages environment. One approval covers both targets.
+    # reviewer on the registry-deploy environment; everything else publishes
+    # straight away on the registry-publish environment, which must stay
+    # unprotected. The approval also gates the legacy sync PR downstream.
     environment:
-      name: "${{ (contains(github.event.head_commit.message, 'bot/lock-bump') || startsWith(github.event.head_commit.message, 'chore: bump toolchain version locks')) && 'registry-deploy' || 'github-pages' }}"
-      url: ${{ steps.deployment.outputs.page_url }}
+      name: "${{ (contains(github.event.head_commit.message, 'bot/lock-bump') || startsWith(github.event.head_commit.message, 'chore: bump toolchain version locks')) && 'registry-deploy' || 'registry-publish' }}"
+      url: https://release.openecos.com/tools/registry.json
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -88,12 +79,6 @@ jobs:
         env:
           SHA: ${{ needs.build.outputs.sha256 }}
         run: echo "$SHA  artifact/tool-registry.json" | sha256sum -c -
-      # All fallible preparation (checkout, Nix, artifact verification,
-      # Pages configuration) runs before either target is touched, and the
-      # canonical OSS object moves first; re-running the workflow converges
-      # any partial publication.
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
       - name: Publish registry to OSS
         env:
           OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
@@ -117,32 +102,9 @@ jobs:
           done
           echo "OSS URL did not serve sha256 $SHA within 5 minutes" >&2
           exit 1
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-  verify-new:
-    name: Verify new URL serves the built bytes
-    needs: [build, deploy]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Poll the new URL for the built checksum
-        env:
-          SHA: ${{ needs.build.outputs.sha256 }}
-        run: |
-          url="https://openecos-projects.github.io/ecos-installer/tool-registry.json"
-          deadline=$(( $(date +%s) + 300 ))
-          while [ "$(date +%s)" -lt "$deadline" ]; do
-            if got="$(curl -fsSL --max-time 20 "$url" | sha256sum | cut -d' ' -f1)" && [ "$got" = "$SHA" ]; then
-              echo "new URL serves sha256 $got"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "new URL did not serve sha256 $SHA within 5 minutes" >&2
-          exit 1
   sync-legacy-pr:
     name: Sync legacy registry via pull request
-    needs: [build, verify-new]
+    needs: [build, deploy]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout ecos-registry
@@ -196,7 +158,7 @@ jobs:
             echo "Artifact sha256: \`$SHA\`"
             echo
             echo "Merging keeps the legacy URL byte-identical with"
-            echo "https://openecos-projects.github.io/ecos-installer/tool-registry.json."
+            echo "https://release.openecos.com/tools/registry.json."
           } > "$body"
           existing="$(gh pr list --repo Emin017/ecos-registry --head bot/tool-registry-sync \
             --state open --json number --jq 'if length > 0 then .[0].number else empty end')"

@@ -13,12 +13,10 @@ jobs:
       - name: Compare URL checksums
         run: |
           oss="$(curl -fsSL --max-time 60 https://release.openecos.com/tools/registry.json | sha256sum | cut -d' ' -f1)"
-          new="$(curl -fsSL --max-time 60 https://openecos-projects.github.io/ecos-installer/tool-registry.json | sha256sum | cut -d' ' -f1)"
           old="$(curl -fsSL --max-time 60 https://emin017.github.io/ecos-registry/tool-registry.json | sha256sum | cut -d' ' -f1)"
           echo "oss=$oss"
-          echo "new=$new"
           echo "old=$old"
-          if [ -z "$oss" ] || [ -z "$new" ] || [ -z "$old" ] || [ "$oss" != "$new" ] || [ "$new" != "$old" ]; then
-            echo "::error::registry URLs diverge (oss=$oss new=$new old=$old)"
+          if [ -z "$oss" ] || [ -z "$old" ] || [ "$oss" != "$old" ]; then
+            echo "::error::registry URLs diverge (oss=$oss old=$old)"
             exit 1
           fi
