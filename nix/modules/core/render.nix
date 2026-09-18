@@ -215,7 +215,12 @@
             ${pkgs.bash}/bin/bash -n "$target"
           '';
         };
-        toolRegistry = pkgs.writeText "tool-registry.json" (builtins.toJSON registry);
+        # Pretty-printed (2-space indent, trailing newline) so the legacy
+        # sync PRs produce reviewable line-based diffs; consumers parse JSON
+        # and are whitespace-agnostic.
+        toolRegistry = pkgs.runCommand "tool-registry.json" { nativeBuildInputs = [ pkgs.jq ]; } ''
+          jq . ${pkgs.writeText "tool-registry-compact.json" (builtins.toJSON registry)} > $out
+        '';
       };
     };
 }
