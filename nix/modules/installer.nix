@@ -43,6 +43,7 @@
         text = ''
           export ECC_INSTALLER=${lib.escapeShellArg (toString ecos.eccInstaller)}
           export PUBLISH_DECIDE=${lib.escapeShellArg "${publishDecide}/bin/publish-decide"}
+          ${builtins.readFile ../scripts/oss-lib.sh}
           ${builtins.readFile ../scripts/publish-oss.sh}
         '';
       };
