@@ -31,7 +31,7 @@ jobs:
       proceed: ${{ steps.resolve.outputs.proceed }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 2
       - name: Resolve tag
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
@@ -83,7 +83,7 @@ jobs:
           mkdir out
           cp result out/ecc-installer.sh
       - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ecc-installer
           path: out/ecc-installer.sh
@@ -99,7 +99,7 @@ jobs:
     environment: ${{ github.event_name == 'push' && 'installer-deploy' || 'installer-manual' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
@@ -108,7 +108,7 @@ jobs:
       - name: Magic Nix cache
         uses: DeterminateSystems/magic-nix-cache-action@v15
       - name: Download installer artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ecc-installer
           path: artifact

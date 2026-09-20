@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
@@ -24,7 +24,7 @@ jobs:
       # The shake database lives in the XDG data dir; caching it avoids
       # re-prefetching every artifact on each run.
       - name: Cache nvfetcher state
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.local/share/nvfetcher
           key: nvfetcher-${{ github.run_id }}

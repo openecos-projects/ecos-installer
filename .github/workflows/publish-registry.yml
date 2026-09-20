@@ -22,7 +22,7 @@ jobs:
       sha256: ${{ steps.hash.outputs.sha256 }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
@@ -42,7 +42,7 @@ jobs:
           mkdir out
           cp result out/tool-registry.json
       - name: Upload registry artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tool-registry
           path: out/tool-registry.json
@@ -62,7 +62,7 @@ jobs:
       url: https://release.openecos.com/tools/registry.json
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
@@ -71,7 +71,7 @@ jobs:
       - name: Magic Nix cache
         uses: DeterminateSystems/magic-nix-cache-action@v15
       - name: Download registry artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: tool-registry
           path: artifact
@@ -108,12 +108,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout ecos-registry
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Emin017/ecos-registry
           token: ${{ secrets.REGISTRY_SYNC_TOKEN }}
       - name: Download registry artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: tool-registry
           path: artifact
