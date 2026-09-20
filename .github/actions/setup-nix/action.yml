@@ -8,5 +8,7 @@ runs:
       with:
         extra_nix_config: |
           experimental-features = nix-command flakes pipe-operators
+          extra-substituters = https://cache.ani.llc/
+          extra-trusted-public-keys = cache.ani.llc:8nINs8lCCU0Yoed1KMjLj6fCHpMmrY+sFuhGTdxLB88=
     - name: Magic Nix cache
       uses: DeterminateSystems/magic-nix-cache-action@v15
