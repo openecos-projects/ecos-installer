@@ -64,13 +64,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes pipe-operators
-      - name: Magic Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v15
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
       - name: Pin ECC tag (manual dispatch only)
         if: github.event_name == 'workflow_dispatch'
         run: nix run .#update-ecc -- ${{ needs.resolve.outputs.tag }}
@@ -100,13 +95,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes pipe-operators
-      - name: Magic Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v15
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
       - name: Download installer artifact
         uses: actions/download-artifact@v8
         with:
