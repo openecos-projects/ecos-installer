@@ -107,7 +107,7 @@ pkgs.runCommand "ecos-release-installer-render-check" { } ''
     !(lib.hasInfix model.ossCadSuite.cnbUrl text)
   ) "echo 'missing OSS cnb_url' >&2; exit 1"}
   ${lib.optionalString (
-    !(lib.hasInfix ''SIZER_VERSION="0.1.0-alpha"'' text)
+    !(lib.hasInfix ''SIZER_VERSION="${model.sizer.version}"'' text)
   ) "echo 'missing sizer version' >&2; exit 1"}
   ${lib.optionalString (!(lib.hasInfix model.sizer.url text)) "echo 'missing sizer url' >&2; exit 1"}
   ${lib.optionalString (
