@@ -14,6 +14,7 @@ rec {
 
   categories = [
     "backend"
+    "formal"
     "frontend"
     "synthesis"
     "simulation"

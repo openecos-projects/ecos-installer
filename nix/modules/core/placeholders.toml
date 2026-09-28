@@ -3,6 +3,7 @@
 # shape in nix/model/) with an optional render format:
 #   raw        - the field as-is (default)
 #   int        - toString
+#   basename   - basename of a URL/path string
 #   lines      - a list joined with newlines
 #   assetTable - PDK asset list as tab-separated name/sha256/url/cnbUrl-or--/dest rows
 
@@ -26,6 +27,10 @@ SIZER_SHA256 = { path = "sizer.sha256" }
 SIZER_URL = { path = "sizer.url" }
 SIZER_CNB_URL = { path = "sizer.cnbUrl" }
 SIZER_CNB_SHA256 = { path = "sizer.cnbSha256" }
+KEPLER_VERSION = { path = "toolsByName.kepler-formal.version" }
+KEPLER_ASSET_NAME = { path = "toolsByName.kepler-formal.url", format = "basename" }
+KEPLER_SHA256 = { path = "toolsByName.kepler-formal.sha256" }
+KEPLER_URL = { path = "toolsByName.kepler-formal.url" }
 PDK_NAME = { path = "pdk.name" }
 PDK_VERSION = { path = "pdk.version" }
 PDK_BASE_ASSET_NAME = { path = "pdk.base.name" }

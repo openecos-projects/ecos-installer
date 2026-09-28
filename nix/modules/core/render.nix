@@ -32,6 +32,7 @@
       formats = {
         raw = v: v;
         int = toString;
+        basename = builtins.baseNameOf;
         lines = lib.concatStringsSep "\n";
         assetTable = assets: lib.concatMapStringsSep "\n" assetRow assets;
       };

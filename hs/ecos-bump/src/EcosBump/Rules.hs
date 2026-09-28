@@ -147,6 +147,7 @@ toolSections =
     "slang",
     "verilator",
     "riscv-toolchain",
+    "kepler-formal",
     "surfer"
   ]
 
@@ -250,7 +251,7 @@ loadRules path = do
         ids = map (unComponentId . eId) allEntries
         dupes = [x | x <- ids, length (filter (== x) ids) > 1]
     check "pdk_pkg" ("duplicate lock entry id(s): " <> intercalate ", " (map T.unpack dupes)) (null dupes)
-    check "toolchain.toml" ("expected 21 lock entries, got " <> show (length allEntries)) (length allEntries == 21)
+    check "toolchain.toml" ("expected 22 lock entries, got " <> show (length allEntries)) (length allEntries == 22)
     pure allEntries
   pure (Rules entries)
   where

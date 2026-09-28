@@ -170,6 +170,18 @@ src = { github = "riscv-collab/riscv-gnu-toolchain" }
 url_template = "https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/{version}/riscv64-elf-ubuntu-22.04-gcc.tar.xz"
 strip_prefix = "riscv"
 
+[kepler-formal]
+name = "kepler-formal"
+display_name = "Kepler Formal"
+description = "Kepler formal verification tool (nightly unstable channel)."
+category = "formal"
+homepage = "https://github.com/openecos-projects/kepler-formal"
+requires = []
+src = { github = "openecos-projects/kepler-formal", prerelease = true }
+version_map = { strip_prefix = "v" }
+url_template = "https://github.com/openecos-projects/kepler-formal/releases/download/{version}/kepler-formal-{version^}-linux-x86_64.tar.gz"
+strip_prefix = "kepler-formal-{version^}-linux-x86_64"
+
 [surfer]
 name = "surfer"
 display_name = "Surfer Web Assets"
