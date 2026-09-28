@@ -29,7 +29,9 @@ jobs:
           # nvchecker's github source needs a token for prerelease checks
           # (ecc, sizer); the default token also covers rate limits
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: nix run .#bump 2>&1 | tee bump.log
+        run: |
+          set -o pipefail
+          nix run .#bump 2>&1 | tee bump.log
       - name: Detect changes
         id: diff
         run: |

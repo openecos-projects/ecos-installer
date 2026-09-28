@@ -60,12 +60,14 @@ runBump cfg = do
     tmpParent <- getTemporaryDirectory
     createDirectoryIfMissing True tmpParent
     tmp <- mkTempDir tmpParent tempPrefix
-    flip finally (removePathForcibly tmp) $ do
+    -- nvfetcher clears buildDir before nvchecker reads the keyfile.
+    keys <- mkTempDir tmpParent (tempPrefix <> "-keys")
+    flip finally (removePathForcibly tmp >> removePathForcibly keys) $ do
       -- Seed the temp buildDir with the current lock file so nvfetcher's
       -- stale/filter mechanics can reuse the old versions; the write-back
       -- happens only on full success.
       copyFile (bcLocksPath cfg) (tmp </> generatedJsonName)
-      mKeyfile <- writeKeyfile tmp
+      mKeyfile <- writeKeyfile keys
       lockSrcs <- readLockSrcs (bcLocksPath cfg)
       let selection = if null (bcOnly cfg) then ids else bcOnly cfg
           excluded = [i | i <- ids, i `notElem` selection]
@@ -128,11 +130,11 @@ checkRuntimeTools tools = do
 -- benefits from one for rate limits; translate GITHUB_TOKEN/GH_TOKEN
 -- into a keyfile when present.
 writeKeyfile :: FilePath -> IO (Maybe FilePath)
-writeKeyfile tmp = do
+writeKeyfile dir = do
   mToken <- lookupEnv "GITHUB_TOKEN" >>= maybe (lookupEnv "GH_TOKEN") (pure . Just)
   case mToken of
     Nothing -> pure Nothing
     Just token -> do
-      let path = tmp </> keyfileName
+      let path = dir </> keyfileName
       writeFile path ("[keys]\ngithub = \"" <> token <> "\"\n")
       pure (Just path)
