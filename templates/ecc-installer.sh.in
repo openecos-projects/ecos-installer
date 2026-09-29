@@ -36,6 +36,10 @@ SIZER_SHA256="@SIZER_SHA256@"
 SIZER_URL="@SIZER_URL@"
 SIZER_CNB_URL="@SIZER_CNB_URL@"
 SIZER_CNB_SHA256="@SIZER_CNB_SHA256@"
+KEPLER_VERSION="@KEPLER_VERSION@"
+KEPLER_ASSET_NAME="@KEPLER_ASSET_NAME@"
+KEPLER_SHA256="@KEPLER_SHA256@"
+KEPLER_URL="@KEPLER_URL@"
 PDK_NAME="@PDK_NAME@"
 PDK_VERSION="@PDK_VERSION@"
 PDK_BASE_ASSET_NAME="@PDK_BASE_ASSET_NAME@"
@@ -81,7 +85,7 @@ OPTIONS:
             Disable progress output
 
         --with-toolchain
-            Install OSS CAD Suite, the ICS55 PDK, and ecc-sizer
+            Install OSS CAD Suite, the ICS55 PDK, ecc-sizer, and kepler-formal
 
         --download-source auto|github|cnb
             Select download source for mirrored assets (default: auto)
@@ -731,6 +735,22 @@ find_sizer_root() {
     return 1
 }
 
+find_kepler_root() {
+    local _staging="$1"
+    local _cand
+    if [ -e "$_staging/bin/kepler-formal" ] && [ -e "$_staging/kepler-formal" ]; then
+        printf '%s\n' "$_staging"
+        return 0
+    fi
+    for _cand in "$_staging"/*; do
+        if [ -e "$_cand/bin/kepler-formal" ] && [ -e "$_cand/kepler-formal" ]; then
+            printf '%s\n' "$_cand"
+            return 0
+        fi
+    done
+    return 1
+}
+
 find_pdk_root() {
     local _staging="$1"
     local _cand
@@ -839,6 +859,30 @@ validate_sizer_dir() {
         }
         END { exit found ? 0 : 1 }
     '
+}
+
+validate_kepler_dir() {
+    local _dir="$1"
+    if [ ! -d "$_dir" ] || [ -L "$_dir" ]; then
+        return 1
+    fi
+    if [ ! -d "$_dir/bin" ] || [ -L "$_dir/bin" ] || [ ! -d "$_dir/lib" ] || [ -L "$_dir/lib" ]; then
+        return 1
+    fi
+    if [ ! -f "$_dir/kepler-formal" ] || [ -L "$_dir/kepler-formal" ]; then
+        return 1
+    fi
+    if [ ! -f "$_dir/bin/kepler-formal" ] || [ -L "$_dir/bin/kepler-formal" ]; then
+        return 1
+    fi
+    if [ ! -x "$_dir/kepler-formal" ] || [ ! -x "$_dir/bin/kepler-formal" ]; then
+        return 1
+    fi
+    # The top-level kepler-formal wrapper sets LD_LIBRARY_PATH to lib/ itself.
+    if ! run_without_loader_env "$_dir/kepler-formal" --version >/dev/null 2>&1; then
+        return 1
+    fi
+    return 0
 }
 
 validate_pdk_dir() {
@@ -960,6 +1004,38 @@ install_sizer() {
     printf '%s\n' "$_dest"
 }
 
+install_kepler() {
+    local _archive="$1"
+    local _dest="${DATA_ROOT}/tools/kepler-formal/${KEPLER_VERSION}"
+    local _staging
+    local _root
+    if [ -e "$_dest" ]; then
+        if [ -d "$_dest" ] && validate_kepler_dir "$_dest"; then
+            say "reusing existing kepler-formal ${KEPLER_VERSION}"
+            printf '%s\n' "$_dest"
+            return 0
+        fi
+        err "existing kepler-formal directory ${_dest} is invalid and will not be replaced in place"
+    fi
+    _staging="$(new_staging)"
+    extract_archive "$_archive" "$_staging"
+    if ! _root="$(find_kepler_root "$_staging")"; then
+        err "kepler-formal archive is missing the expected kepler-formal wrapper layout"
+    fi
+    if ! validate_kepler_dir "$_root"; then
+        err "kepler-formal validation failed"
+    fi
+    if [ "$_root" = "$_staging" ]; then
+        promote_dir "$_staging" "$_dest"
+        clear_staging
+    else
+        promote_dir "$_root" "$_dest"
+        rm -rf "$_staging"
+        clear_staging
+    fi
+    printf '%s\n' "$_dest"
+}
+
 prefetch_pdk_supplementals() {
     local _name
     local _sha
@@ -1031,15 +1107,24 @@ select_existing_toolchain() {
     local _oss="${DATA_ROOT}/tools/oss-cad-suite/${OSS_CAD_VERSION}"
     local _pdk="${DATA_ROOT}/pdks/${PDK_NAME}/${PDK_VERSION}"
     local _sizer="${DATA_ROOT}/tools/ecc-sizer/${SIZER_VERSION}"
+    local _kepler="${DATA_ROOT}/tools/kepler-formal/${KEPLER_VERSION}"
     if [ -d "$_oss" ] && [ -d "$_pdk" ] && [ -d "$_sizer" ] && validate_oss_dir "$_oss" && validate_pdk_dir "$_pdk" && validate_sizer_dir "$_sizer"; then
         OSS_ROOT="$_oss"
         PDK_ROOT="$_pdk"
         SIZER_ROOT="$_sizer"
+        # kepler-formal joined the toolchain later; keep exporting it when
+        # present, but don't fail older installs that predate it.
+        if [ -d "$_kepler" ] && validate_kepler_dir "$_kepler"; then
+            KEPLER_ROOT="$_kepler"
+        else
+            KEPLER_ROOT=""
+        fi
         return 0
     fi
     OSS_ROOT=""
     PDK_ROOT=""
     SIZER_ROOT=""
+    KEPLER_ROOT=""
     return 1
 }
 
@@ -1047,6 +1132,7 @@ write_wrapper() {
     local _oss_root="$1"
     local _pdk_root="$2"
     local _sizer_root="$3"
+    local _kepler_root="$4"
     local _tmp
     local _dest="${BIN_DIR}/ecc"
     _tmp="$(mktemp "${BIN_DIR}/ecc.XXXXXX")"
@@ -1062,6 +1148,10 @@ write_wrapper() {
         if [ -n "$_sizer_root" ]; then
             printf 'export CHIPCOMPILER_ECC_SIZER_ROOT=%s\n' "$(shell_quote "$_sizer_root")"
             printf 'export PATH=%s:"$PATH"\n' "$(shell_quote "${_sizer_root}/bin")"
+        fi
+        if [ -n "$_kepler_root" ]; then
+            printf 'export CHIPCOMPILER_KEPLER_FORMAL_ROOT=%s\n' "$(shell_quote "$_kepler_root")"
+            printf 'export PATH=%s:"$PATH"\n' "$(shell_quote "$_kepler_root")"
         fi
         printf '%s\n' 'exec "$ECC_DATA_ROOT/$ECC_VERSION/ecc" "$@"'
     } > "$_tmp"
@@ -1127,10 +1217,13 @@ main() {
     ECC_ARCHIVE="$(download_ecc)"
     OSS_ARCHIVE=""
     SIZER_ARCHIVE=""
+    KEPLER_ARCHIVE=""
     PDK_ARCHIVE=""
     if [ "$WITH_TOOLCHAIN" = 1 ]; then
         OSS_ARCHIVE="$(download_by_source "$OSS_CAD_SHA256" "$OSS_CAD_ASSET_NAME" "$OSS_CAD_URL" "$OSS_CAD_CNB_URL")"
         SIZER_ARCHIVE="$(download_by_source "$SIZER_SHA256" "$SIZER_ASSET_NAME" "$SIZER_URL" "$SIZER_CNB_URL" "$SIZER_CNB_SHA256")"
+        # kepler-formal has no CNB mirror.
+        KEPLER_ARCHIVE="$(download_by_source "$KEPLER_SHA256" "$KEPLER_ASSET_NAME" "$KEPLER_URL" "")"
         PDK_ARCHIVE="$(download_by_source "$PDK_BASE_SHA256" "$PDK_BASE_ASSET_NAME" "$PDK_BASE_URL" "$PDK_BASE_CNB_URL" "$PDK_BASE_CNB_SHA256")"
         prefetch_pdk_supplementals
     fi
@@ -1142,11 +1235,13 @@ main() {
     OSS_ROOT=""
     PDK_ROOT=""
     SIZER_ROOT=""
+    KEPLER_ROOT=""
     if [ "$WITH_TOOLCHAIN" = 1 ]; then
         OSS_ROOT="$(install_oss_cad "$OSS_ARCHIVE")"
         PDK_ROOT="$(install_pdk "$PDK_ARCHIVE")"
         SIZER_ROOT="$(install_sizer "$SIZER_ARCHIVE")"
-        if [ -z "$OSS_ROOT" ] || [ -z "$PDK_ROOT" ] || [ -z "$SIZER_ROOT" ]; then
+        KEPLER_ROOT="$(install_kepler "$KEPLER_ARCHIVE")"
+        if [ -z "$OSS_ROOT" ] || [ -z "$PDK_ROOT" ] || [ -z "$SIZER_ROOT" ] || [ -z "$KEPLER_ROOT" ]; then
             err "toolchain installation failed"
         fi
     elif select_existing_toolchain; then
@@ -1155,7 +1250,7 @@ main() {
         say "ECC was installed without the managed toolchain"
     fi
 
-    write_wrapper "$OSS_ROOT" "$PDK_ROOT" "$SIZER_ROOT"
+    write_wrapper "$OSS_ROOT" "$PDK_ROOT" "$SIZER_ROOT" "$KEPLER_ROOT"
     write_receipt
     say "installed ECC ${ECC_VERSION} to ${DATA_ROOT}/${ECC_TAG}"
     print_path_guidance

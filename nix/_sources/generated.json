@@ -251,6 +251,24 @@
         },
         "version": "v1.10.102"
     },
+    "kepler-formal": {
+        "cargoLock": null,
+        "cnb_sha256": null,
+        "date": null,
+        "extract": null,
+        "name": "kepler-formal",
+        "passthru": null,
+        "pinned": false,
+        "sha256_hex": "56d90fbb3e5845adf67c5edbea5079426cb449d9c4c025a9a8adee42c67ac0b0",
+        "size": 6531750,
+        "src": {
+            "name": null,
+            "sha256": "sha256-VtkPuz5YRa32fF7b6lB5Qmy0SdnEwCWpqK3uQsZ6wLA=",
+            "type": "url",
+            "url": "https://github.com/openecos-projects/kepler-formal/releases/download/v0.5.0-nightly.20260928/kepler-formal-0.5.0-nightly.20260928-linux-x86_64.tar.gz"
+        },
+        "version": "v0.5.0-nightly.20260928"
+    },
     "mpc-frame": {
         "cargoLock": null,
         "cnb_sha256": null,

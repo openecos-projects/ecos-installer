@@ -237,7 +237,7 @@ let
   registryChecks = {
     schemaVersion = registry.schema_version == 2;
     counts =
-      builtins.length registry.tools == 11
+      builtins.length registry.tools == 12
       && builtins.length registry.pdks == 1
       && builtins.length registry.mpcs == 1;
     singleVersion = builtins.all (entity: builtins.length entity.versions == 1) (
@@ -252,6 +252,7 @@ let
         "ecc-fe-difftest-ref"
         "ecc-fe-examples"
         "ecc-fe-soc-ysyx-am"
+        "kepler-formal"
         "riscv-toolchain"
         "slang"
         "surfer"
@@ -318,10 +319,11 @@ let
     json="${registryJson}"
     test -s "$json"
     jq -e '.schema_version == 2' "$json"
-    jq -e '(.tools | length) == 11 and (.pdks | length) == 1 and (.mpcs | length) == 1' "$json"
+    jq -e '(.tools | length) == 12 and (.pdks | length) == 1 and (.mpcs | length) == 1' "$json"
     jq -e 'all(.tools[], .pdks[], .mpcs[]; (.versions | length) == 1)' "$json"
-    jq -e '[.tools[].name] | (index("ecc") and index("yosys") and (index("ecc-sizer") | not))' "$json"
-    jq -e '[.tools[].name] | sort == ["ecc", "ecc-fe", "ecc-fe-cpu-rtl", "ecc-fe-difftest-ref", "ecc-fe-examples", "ecc-fe-soc-ysyx-am", "riscv-toolchain", "slang", "surfer", "verilator", "yosys"]' "$json"
+    jq -e '[.tools[].name] | (index("ecc") and index("yosys") and index("kepler-formal") and (index("ecc-sizer") | not))' "$json"
+    jq -e '[.tools[].name] | sort == ["ecc", "ecc-fe", "ecc-fe-cpu-rtl", "ecc-fe-difftest-ref", "ecc-fe-examples", "ecc-fe-soc-ysyx-am", "kepler-formal", "riscv-toolchain", "slang", "surfer", "verilator", "yosys"]' "$json"
+    jq -e '[.tools[] | select(.name == "kepler-formal") | .category] == ["formal"]' "$json"
     jq -e '[.pdks[].id] == ["ics55"] and [.mpcs[].id] == ["mpc-frame"]' "$json"
     jq -e '.pdks[0].versions[0].version == "1.10.102"' "$json"
     jq -e '.pdks[0].versions[0] | (has("requires") | not)' "$json"

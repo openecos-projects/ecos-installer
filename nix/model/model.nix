@@ -63,6 +63,7 @@ let
     "slang"
     "verilator"
     "riscv-toolchain"
+    "kepler-formal"
     "surfer"
   ];
 
@@ -614,6 +615,10 @@ let
     sizer = sizerModel;
     pdk = pdkModel;
     tools = tools;
+    # Name-addressed view of the tools list so installer placeholders
+    # (nix/modules/core/placeholders.toml) can reference one tool by a
+    # dot-separated path.
+    toolsByName = builtins.listToAttrs (map (t: lib.nameValuePair t.name t) tools);
     mpc = mpcModel;
     platform = platform;
   };

@@ -175,6 +175,7 @@ let
     "slang"
     "verilator"
     "riscv-toolchain"
+    "kepler-formal"
     "surfer"
   ];
 

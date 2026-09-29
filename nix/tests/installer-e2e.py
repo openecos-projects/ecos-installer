@@ -28,6 +28,8 @@ CELL_LEFS = (
 TECH_LEF = "prtech/techLEF/N551P6M_ecos.lef"
 SIZER_VERSION = "0.1.0-alpha"
 SIZER_ASSET = f"ecc-sizer-{SIZER_VERSION}-linux-x64.tar.gz"
+KEPLER_VERSION = "0.5.0-nightly.20260928"
+KEPLER_ASSET = f"kepler-formal-{KEPLER_VERSION}-linux-x86_64.tar.gz"
 LIBERTY_SPECS = (
     (
         "ics55_LLSC_H7CH_liberty.tar.bz2",
@@ -88,6 +90,10 @@ PLACEHOLDERS = (
     "SIZER_URL",
     "SIZER_CNB_URL",
     "SIZER_CNB_SHA256",
+    "KEPLER_VERSION",
+    "KEPLER_ASSET_NAME",
+    "KEPLER_SHA256",
+    "KEPLER_URL",
     "PDK_NAME",
     "PDK_VERSION",
     "PDK_BASE_ASSET_NAME",
@@ -122,7 +128,7 @@ def pack_tar(members: dict[str, bytes | None], *, compression: str) -> bytes:
             info.mode = (
                 0o755
                 if content.startswith(b"#!")
-                or base in {"ecc", "yosys", "torch_shm_manager", "Sizer"}
+                or base in {"ecc", "yosys", "torch_shm_manager", "Sizer", "kepler-formal"}
                 else 0o644
             )
             tar.addfile(info, BytesIO(content))
@@ -144,6 +150,7 @@ if [ "$1" = "dump-env" ]; then
   printf 'OSS=%s\\n' "${{CHIPCOMPILER_OSS_CAD_DIR-}}"
   printf 'PDK=%s\\n' "${{CHIPCOMPILER_ICS55_PDK_ROOT-}}"
   printf 'SIZER_ROOT=%s\\n' "${{CHIPCOMPILER_ECC_SIZER_ROOT-}}"
+  printf 'KEPLER_ROOT=%s\\n' "${{CHIPCOMPILER_KEPLER_FORMAL_ROOT-}}"
   printf 'PATH=%s\\n' "$PATH"
   printf 'YOSYS_PLUGINPATH=%s\\n' "${{YOSYS_PLUGINPATH-}}"
   printf 'YOSYS_DATDIR=%s\\n' "${{YOSYS_DATDIR-}}"
@@ -307,6 +314,32 @@ def build_sizer_root_symlink_archive() -> bytes:
     return buffer.getvalue()
 
 
+def build_kepler_archive(*, version: str = KEPLER_VERSION) -> bytes:
+    top = f"kepler-formal-{version}-linux-x86_64"
+    wrapper = f"""#!/bin/sh
+# Mirrors the real top-level wrapper: sets LD_LIBRARY_PATH to lib/ and execs
+# bin/kepler-formal.
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+export LD_LIBRARY_PATH="${{SCRIPT_DIR}}/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}"
+exec "${{SCRIPT_DIR}}/bin/kepler-formal" "$@"
+""".encode()
+    binary = f"""#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "kepler-formal {version}"
+  exit 0
+fi
+exit 0
+""".encode()
+    return pack_tar(
+        {
+            f"{top}/kepler-formal": wrapper,
+            f"{top}/bin/kepler-formal": binary,
+            f"{top}/lib/libnaja_runtime.so": b"ELF-kepler-payload\n",
+        },
+        compression="gz",
+    )
+
+
 def build_pdk_base_archive() -> bytes:
     members: dict[str, bytes | None] = {f"icsprout55-pdk/{TECH_LEF}": b"VERSION 5.8 ;\n"}
     for path in CELL_LEFS:
@@ -333,6 +366,8 @@ def build_release_assets(*, version: str = "0.1.0-alpha.11") -> dict[str, Packed
     )
     sizer = build_sizer_archive()
     assets[SIZER_ASSET] = PackedAsset(SIZER_ASSET, sizer, sha256_bytes(sizer))
+    kepler = build_kepler_archive()
+    assets[KEPLER_ASSET] = PackedAsset(KEPLER_ASSET, kepler, sha256_bytes(kepler))
     pdk_base = build_pdk_base_archive()
     assets["icsprout55-pdk-v1.10.102.tar.gz"] = PackedAsset(
         "icsprout55-pdk-v1.10.102.tar.gz", pdk_base, sha256_bytes(pdk_base)
@@ -420,6 +455,7 @@ def render_installer(
     ecc = assets["ecc-cli-linux-x86_64.tar.gz"]
     oss = assets["oss-cad-suite-linux-x64-20260827.tgz"]
     sizer = assets[SIZER_ASSET]
+    kepler = assets[KEPLER_ASSET]
     pdk_base = assets["icsprout55-pdk-v1.10.102.tar.gz"]
     rows = []
     for spec in (*LIBERTY_SPECS, *GDS_SPECS):
@@ -456,6 +492,10 @@ def render_installer(
         "SIZER_URL": f"{base}/github/{sizer.name}",
         "SIZER_CNB_URL": f"{base}/cnb/{sizer.name}",
         "SIZER_CNB_SHA256": "",
+        "KEPLER_VERSION": KEPLER_VERSION,
+        "KEPLER_ASSET_NAME": kepler.name,
+        "KEPLER_SHA256": kepler.sha256,
+        "KEPLER_URL": f"{base}/github/{kepler.name}",
         "PDK_NAME": "icsprout55",
         "PDK_VERSION": "v1.10.102",
         "PDK_BASE_ASSET_NAME": pdk_base.name,
@@ -632,12 +672,15 @@ def test_github_success(h: Harness) -> None:
         dumped["OSS"]
         or dumped["PDK"]
         or dumped["SIZER_ROOT"]
+        or dumped["KEPLER_ROOT"]
         or dumped["YOSYS_PLUGINPATH"]
         or dumped["YOSYS_DATDIR"]
     ):
         fail(f"ecc-only install leaked toolchain env: {dumped}")
     if str(data / "tools" / "ecc-sizer" / SIZER_VERSION / "bin") in dumped["PATH"].split(":"):
         fail("ecc-only install leaked sizer bin onto PATH")
+    if str(data / "tools" / "kepler-formal" / KEPLER_VERSION) in dumped["PATH"].split(":"):
+        fail("ecc-only install leaked kepler-formal onto PATH")
     receipt = json.loads((config / "ecc-receipt.json").read_text())
     if receipt["binaries"] != ["ecc"] or receipt["version"] != "0.1.0-alpha.11":
         fail(receipt)
@@ -777,12 +820,17 @@ def test_toolchain_wrapper(h: Harness) -> None:
     oss = data / "tools" / "oss-cad-suite" / "20260827"
     pdk = data / "pdks" / "icsprout55" / "v1.10.102"
     sizer = data / "tools" / "ecc-sizer" / SIZER_VERSION
+    kepler = data / "tools" / "kepler-formal" / KEPLER_VERSION
     if dumped["OSS"] != str(oss) or dumped["PDK"] != str(pdk) or dumped["SIZER_ROOT"] != str(sizer):
+        fail(dumped)
+    if dumped["KEPLER_ROOT"] != str(kepler):
         fail(dumped)
     if str(oss / "bin") in dumped["PATH"].split(":"):
         fail("oss bin leaked onto PATH")
     if str(sizer / "bin") not in dumped["PATH"].split(":"):
         fail("sizer bin missing from wrapper PATH; ECC cannot discover Sizer")
+    if str(kepler) not in dumped["PATH"].split(":"):
+        fail("kepler-formal wrapper dir missing from wrapper PATH")
     if dumped["YOSYS_PLUGINPATH"] or dumped["YOSYS_DATDIR"]:
         fail(dumped)
     if not (oss / "bin" / "yosys").is_file():
@@ -791,6 +839,10 @@ def test_toolchain_wrapper(h: Harness) -> None:
         fail("sizer missing or not executable")
     if not (sizer / "libexec" / "Sizer").is_file():
         fail("sizer libexec payload missing")
+    if not (kepler / "kepler-formal").is_file() or not os.access(kepler / "kepler-formal", os.X_OK):
+        fail("kepler-formal wrapper missing or not executable")
+    if not (kepler / "bin" / "kepler-formal").is_file():
+        fail("kepler-formal binary missing")
     for liberty in liberty_paths():
         if (pdk / liberty).stat().st_size <= 0:
             fail(liberty)
@@ -812,6 +864,10 @@ def test_ecc_only_upgrade_preserves_toolchain(h: Harness) -> None:
         fail(dumped)
     if not dumped["SIZER_ROOT"].endswith(f"/tools/ecc-sizer/{SIZER_VERSION}"):
         fail(dumped)
+    if not dumped["KEPLER_ROOT"].endswith(f"/tools/kepler-formal/{KEPLER_VERSION}"):
+        fail(dumped)
+    if f"/tools/kepler-formal/{KEPLER_VERSION}" not in dumped["PATH"]:
+        fail("kepler-formal missing from wrapper PATH after ecc-only upgrade")
     if f"/tools/ecc-sizer/{SIZER_VERSION}/bin" not in dumped["PATH"]:
         fail("sizer bin missing from wrapper PATH after ecc-only upgrade")
     if not (data / "v0.1.0-alpha.11").is_dir() or not (data / "v0.1.0-alpha.12").is_dir():
@@ -1153,6 +1209,33 @@ def test_sizer_root_symlink_rejected(h: Harness) -> None:
         h.routes[f"/github/{SIZER_ASSET}"] = saved_github
 
 
+def test_kepler_bad_layout(h: Harness) -> None:
+    root = h.tmp()
+    env = xdg_env(root)
+    bad = pack_tar(
+        {f"kepler-formal-{KEPLER_VERSION}-linux-x86_64/README": b"no binaries here\n"},
+        compression="gz",
+    )
+    saved_github = h.routes[f"/github/{KEPLER_ASSET}"]
+    try:
+        h.routes[f"/github/{KEPLER_ASSET}"] = {"data": bad}
+        mutated = dict(h.assets)
+        mutated[KEPLER_ASSET] = PackedAsset(KEPLER_ASSET, bad, sha256_bytes(bad))
+        result = run_installer(
+            h.installer(root / "installer.sh", assets=mutated), env, "--with-toolchain"
+        )
+        if (
+            result.returncode == 0
+            or "missing the expected kepler-formal wrapper layout" not in result.stderr
+        ):
+            fail(result.stderr)
+        data = Path(env["XDG_DATA_HOME"]) / "ecc"
+        if (data / "tools" / "kepler-formal" / KEPLER_VERSION).exists():
+            fail("partial kepler-formal install survived layout failure")
+    finally:
+        h.routes[f"/github/{KEPLER_ASSET}"] = saved_github
+
+
 def test_missing_sizer_blocks_toolchain_export(h: Harness) -> None:
     root = h.tmp()
     env = xdg_env(root)
@@ -1192,6 +1275,8 @@ def test_cnb_mode_toolchain(h: Harness) -> None:
     try:
         for name in h.assets:
             h.routes[f"/github/{name}"] = {"status": 404}
+        # kepler-formal has no CNB mirror; its GitHub route must stay up.
+        h.routes[f"/github/{KEPLER_ASSET}"] = {"data": h.assets[KEPLER_ASSET].data}
         root = h.tmp()
         env = xdg_env(root)
         result = run_installer(
@@ -1203,13 +1288,18 @@ def test_cnb_mode_toolchain(h: Harness) -> None:
         )
         if result.returncode != 0:
             fail(result.stderr)
-        if "no CNB URL" in result.stderr:
+        no_cnb = [line for line in result.stderr.splitlines() if "no CNB URL" in line]
+        if any(KEPLER_ASSET not in line for line in no_cnb):
             fail(result.stderr)
         data = Path(env["XDG_DATA_HOME"]) / "ecc"
         if not (data / "tools" / "oss-cad-suite" / "20260827" / "bin" / "yosys").is_file():
             fail("cnb toolchain missing yosys")
         if not (data / "tools" / "ecc-sizer" / SIZER_VERSION / "bin" / "Sizer").is_file():
             fail("cnb toolchain missing sizer")
+        if not (
+            data / "tools" / "kepler-formal" / KEPLER_VERSION / "bin" / "kepler-formal"
+        ).is_file():
+            fail("github fallback missing kepler-formal")
     finally:
         h.routes.clear()
         h.routes.update(saved)
@@ -1302,6 +1392,7 @@ CASES = [
     test_sizer_wrong_version_banner,
     test_sizer_symlink_rejected,
     test_sizer_root_symlink_rejected,
+    test_kepler_bad_layout,
     test_missing_sizer_blocks_toolchain_export,
     test_conflicting_flags,
     test_cnb_mode_toolchain,
