@@ -259,20 +259,20 @@
         "name": "kepler-formal",
         "passthru": null,
         "pinned": false,
-        "sha256_hex": "56d90fbb3e5845adf67c5edbea5079426cb449d9c4c025a9a8adee42c67ac0b0",
-        "size": 6531750,
+        "sha256_hex": "1e8ed98e1a635bc21497b63a89cf96410a7a5489d016ea29e7da69c96d9673ae",
+        "size": 8914916,
         "src": {
             "name": null,
-            "sha256": "sha256-VtkPuz5YRa32fF7b6lB5Qmy0SdnEwCWpqK3uQsZ6wLA=",
+            "sha256": "sha256-Ho7ZjhpjW8IUl7Y6ic+WQQp6VInQFuop59ppyW2Wc64=",
             "type": "url",
-            "url": "https://github.com/openecos-projects/kepler-formal/releases/download/v0.5.0-nightly.20260928/kepler-formal-0.5.0-nightly.20260928-linux-x86_64.tar.gz"
+            "url": "https://github.com/openecos-projects/kepler-formal/releases/download/v0.5.0-nightly.20260929/kepler-formal-0.5.0-nightly.20260929-linux-x86_64.tar.gz"
         },
-        "version": "v0.5.0-nightly.20260928"
+        "version": "v0.5.0-nightly.20260929"
     },
     "mpc-frame": {
         "cargoLock": null,
         "cnb_sha256": null,
-        "date": null,
+        "date": "2026-08-27",
         "extract": null,
         "name": "mpc-frame",
         "passthru": null,
@@ -285,7 +285,7 @@
             "type": "url",
             "url": "https://github.com/openecos-projects/mpc-frame/archive/01ac0615e3b6d73db605afaf7c67851ef0cf5767.tar.gz"
         },
-        "version": "0.1.0"
+        "version": "01ac0615e3b6d73db605afaf7c67851ef0cf5767"
     },
     "oss_cad_suite": {
         "cargoLock": null,
@@ -295,15 +295,15 @@
         "name": "oss_cad_suite",
         "passthru": null,
         "pinned": false,
-        "sha256_hex": "c3ffafe1549d5bf321b85e6ac30b3bc6af0af72093d5f45117380bcc0645a8e2",
-        "size": 740836017,
+        "sha256_hex": "d5002d4af8de694302754edc1e26787ae4d731f6318d007a43223a5e4b7f0d85",
+        "size": 746395724,
         "src": {
             "name": null,
-            "sha256": "sha256-w/+v4VSdW/MhuF5qwws7xq8K9yCT1fRRFzgLzAZFqOI=",
+            "sha256": "sha256-1QAtSvjeaUMCdU7cHiZ4euTXMfYxjQB6QyI6Xkt/DYU=",
             "type": "url",
-            "url": "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-08-27/oss-cad-suite-linux-x64-20260827.tgz"
+            "url": "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-10-02/oss-cad-suite-linux-x64-20261002.tgz"
         },
-        "version": "2026-08-27"
+        "version": "2026-10-02"
     },
     "riscv-toolchain": {
         "cargoLock": null,
@@ -313,15 +313,15 @@
         "name": "riscv-toolchain",
         "passthru": null,
         "pinned": false,
-        "sha256_hex": "231ba19378a27f19724805cf5e8b5917064ea9b89f87d7829009fd514369e2ef",
-        "size": 540298396,
+        "sha256_hex": "dcfb2234a45f2166e33ae9124dec8b5253e6d08e63be139fc4d0014b2802f964",
+        "size": 539942972,
         "src": {
             "name": null,
-            "sha256": "sha256-Ixuhk3iifxlySAXPXotZFwZOqbifh9eCkAn9UUNp4u8=",
+            "sha256": "sha256-3PsiNKRfIWbjOukSTeyLUlPm0I5jvhOfxNABSygC+WQ=",
             "type": "url",
-            "url": "https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2026.06.06/riscv64-elf-ubuntu-22.04-gcc.tar.xz"
+            "url": "https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2026.08.27/riscv64-elf-ubuntu-22.04-gcc.tar.xz"
         },
-        "version": "2026.06.06"
+        "version": "2026.08.27"
     },
     "sizer": {
         "cargoLock": null,
@@ -331,15 +331,15 @@
         "name": "sizer",
         "passthru": null,
         "pinned": false,
-        "sha256_hex": "d33a2167600711f35fb1dcef55983b0d669176988d8722ed8b22c03471dafee7",
-        "size": 85803792,
+        "sha256_hex": "cf4960a7452b7fb69b319ece844a9ef579d564541ce5407917e314c6eaa351af",
+        "size": 85807140,
         "src": {
             "name": null,
-            "sha256": "sha256-0zohZ2AHEfNfsdzvVZg7DWaRdpiNhyLtiyLANHHa/uc=",
+            "sha256": "sha256-z0lgp0Urf7abMZ7OhEqe9XnVZFQc5UB5F+MUxuqjUa8=",
             "type": "url",
-            "url": "https://github.com/openecos-projects/ecc-sizer/releases/download/v0.1.0-alpha/ecc-sizer-0.1.0-alpha-linux-x64.tar.gz"
+            "url": "https://github.com/openecos-projects/ecc-sizer/releases/download/v0.1.0-alpha.1/ecc-sizer-0.1.0-alpha.1-linux-x64.tar.gz"
         },
-        "version": "v0.1.0-alpha"
+        "version": "v0.1.0-alpha.1"
     },
     "slang": {
         "cargoLock": null,
@@ -349,15 +349,15 @@
         "name": "slang",
         "passthru": null,
         "pinned": false,
-        "sha256_hex": "951a170e10e25e54c91565030acfdfc11c3226714ebf225a18ad4166a898d8a4",
-        "size": 3514870,
+        "sha256_hex": "d1f680e2c90b95daab3b812a6431055e3d8828fde281dbf89b72ee3eceb90dd5",
+        "size": 3689188,
         "src": {
             "name": null,
-            "sha256": "sha256-lRoXDhDiXlTJFWUDCs/fwRwyJnFOvyJaGK1BZqiY2KQ=",
+            "sha256": "sha256-0faA4skLldqrO4EqZDEFXj2IKP3igdv4m3LuPs65DdU=",
             "type": "url",
-            "url": "https://github.com/MikePopoloski/slang/releases/download/v11.0/slang-linux-x86_64.tar.gz"
+            "url": "https://github.com/MikePopoloski/slang/releases/download/v12.0/slang-linux-x86_64.tar.gz"
         },
-        "version": "v11.0"
+        "version": "v12.0"
     },
     "surfer": {
         "cargoLock": null,
