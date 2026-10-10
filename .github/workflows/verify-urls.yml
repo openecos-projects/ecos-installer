@@ -12,11 +12,48 @@ jobs:
     steps:
       - name: Compare URL checksums
         run: |
-          oss="$(curl -fsSL --max-time 60 https://release.openecos.com/tools/registry.json | sha256sum | cut -d' ' -f1)"
-          old="$(curl -fsSL --max-time 60 https://emin017.github.io/ecos-registry/tool-registry.json | sha256sum | cut -d' ' -f1)"
+          fetch_sha() {
+            # Hash bytes fetched to disk, not a `curl | sha256sum` pipe: the
+            # pipe's exit status comes from sha256sum, so a failed curl (e.g.
+            # a transient HTTP 525) hashes an empty stream and then reports
+            # that as content divergence.
+            local url="$1" out="$2" deadline=$(( $(date +%s) + 300 )) remain sum
+            while true; do
+              remain=$(( deadline - $(date +%s) ))
+              if [ "$remain" -le 0 ]; then
+                return 1
+              fi
+              # Cap --max-time and the retry sleep at the remaining budget so
+              # the 5-minute deadline is a hard cap, not a per-attempt check.
+              if curl -fsSL --max-time "$(( remain > 60 ? 60 : remain ))" -o "$out" "$url"; then
+                # Called from an `if !` condition, so errexit is suppressed in
+                # here: check the hash command explicitly, never fall through
+                # to return 0 after a failed sha256sum.
+                sum="$(sha256sum "$out")" || return 1
+                printf '%s\n' "${sum%% *}"
+                return 0
+              fi
+              echo "fetch of $url failed; retrying for up to 5 minutes" >&2
+              remain=$(( deadline - $(date +%s) ))
+              if [ "$remain" -gt 0 ]; then
+                sleep "$(( remain > 10 ? 10 : remain ))"
+              fi
+            done
+          }
+          oss_url="https://release.openecos.com/tools/registry.json"
+          old_url="https://emin017.github.io/ecos-registry/tool-registry.json"
+          tmp="$(mktemp -d)"
+          if ! oss="$(fetch_sha "$oss_url" "$tmp/oss.json")"; then
+            echo "::error::failed to fetch $oss_url within 5 minutes"
+            exit 1
+          fi
+          if ! old="$(fetch_sha "$old_url" "$tmp/old.json")"; then
+            echo "::error::failed to fetch $old_url within 5 minutes"
+            exit 1
+          fi
           echo "oss=$oss"
           echo "old=$old"
-          if [ -z "$oss" ] || [ -z "$old" ] || [ "$oss" != "$old" ]; then
+          if [ "$oss" != "$old" ]; then
             echo "::error::registry URLs diverge (oss=$oss old=$old)"
             exit 1
           fi
