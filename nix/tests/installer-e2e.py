@@ -94,6 +94,7 @@ PLACEHOLDERS = (
     "KEPLER_ASSET_NAME",
     "KEPLER_SHA256",
     "KEPLER_URL",
+    "KEPLER_CNB_URL",
     "PDK_NAME",
     "PDK_VERSION",
     "PDK_BASE_ASSET_NAME",
@@ -496,6 +497,7 @@ def render_installer(
         "KEPLER_ASSET_NAME": kepler.name,
         "KEPLER_SHA256": kepler.sha256,
         "KEPLER_URL": f"{base}/github/{kepler.name}",
+        "KEPLER_CNB_URL": f"{base}/cnb/{kepler.name}",
         "PDK_NAME": "icsprout55",
         "PDK_VERSION": "v1.10.102",
         "PDK_BASE_ASSET_NAME": pdk_base.name,
@@ -1275,8 +1277,6 @@ def test_cnb_mode_toolchain(h: Harness) -> None:
     try:
         for name in h.assets:
             h.routes[f"/github/{name}"] = {"status": 404}
-        # kepler-formal has no CNB mirror; its GitHub route must stay up.
-        h.routes[f"/github/{KEPLER_ASSET}"] = {"data": h.assets[KEPLER_ASSET].data}
         root = h.tmp()
         env = xdg_env(root)
         result = run_installer(
@@ -1289,7 +1289,7 @@ def test_cnb_mode_toolchain(h: Harness) -> None:
         if result.returncode != 0:
             fail(result.stderr)
         no_cnb = [line for line in result.stderr.splitlines() if "no CNB URL" in line]
-        if any(KEPLER_ASSET not in line for line in no_cnb):
+        if no_cnb:
             fail(result.stderr)
         data = Path(env["XDG_DATA_HOME"]) / "ecc"
         if not (data / "tools" / "oss-cad-suite" / "20260827" / "bin" / "yosys").is_file():
@@ -1299,7 +1299,7 @@ def test_cnb_mode_toolchain(h: Harness) -> None:
         if not (
             data / "tools" / "kepler-formal" / KEPLER_VERSION / "bin" / "kepler-formal"
         ).is_file():
-            fail("github fallback missing kepler-formal")
+            fail("cnb toolchain missing kepler-formal")
     finally:
         h.routes.clear()
         h.routes.update(saved)

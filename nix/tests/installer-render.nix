@@ -115,6 +115,9 @@ pkgs.runCommand "ecos-release-installer-render-check" { } ''
   ${lib.optionalString (
     !(lib.hasInfix model.toolsByName."kepler-formal".url text)
   ) "echo 'missing kepler-formal url' >&2; exit 1"}
+  ${lib.optionalString (
+    !(lib.hasInfix model.toolsByName."kepler-formal".cnbUrl text)
+  ) "echo 'missing kepler-formal cnb_url' >&2; exit 1"}
   ${lib.optionalString (!(lib.hasInfix model.sizer.url text)) "echo 'missing sizer url' >&2; exit 1"}
   ${lib.optionalString (
     !(lib.hasInfix model.sizer.cnbUrl text)

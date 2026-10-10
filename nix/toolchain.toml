@@ -180,6 +180,7 @@ requires = []
 src = { github = "openecos-projects/kepler-formal", prerelease = true }
 version_map = { strip_prefix = "v" }
 url_template = "https://github.com/openecos-projects/kepler-formal/releases/download/{version}/kepler-formal-{version^}-linux-x86_64.tar.gz"
+cnb_url_template = "https://cnb.cool/ecoslab/kepler-formal/-/releases/download/{version}/kepler-formal-{version^}-linux-x86_64.tar.gz"
 strip_prefix = "kepler-formal-{version^}-linux-x86_64"
 
 [surfer]
