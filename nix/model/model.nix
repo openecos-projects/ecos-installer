@@ -160,6 +160,7 @@ let
     "requires"
     "version"
     "url"
+    "cnb_url"
     "sha256"
     "size"
     "metadata_url"
@@ -434,6 +435,14 @@ let
       version = toolVersion;
       platform = platformKey;
       url = requireSuffix "${key}.url" archiveSuffixes (requireHttpsUrl "${key}.url" (section.url or ""));
+      # Optional CNB mirror (only kepler-formal carries one today); like
+      # sizer the mirror serves byte-identical release assets, so no
+      # separate cnb_sha256 is needed.
+      cnbUrl =
+        let
+          u = section.cnb_url or "";
+        in
+        if u == "" then "" else requireHttpsUrl "${key}.cnb_url" u;
       sha256 = requireHex key (section.sha256 or "");
       size = requireSize key (requireInt "${key}.size" (section.size or 0));
       metadataUrl = metadataUrl;

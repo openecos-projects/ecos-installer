@@ -31,6 +31,7 @@ KEPLER_VERSION = { path = "toolsByName.kepler-formal.version" }
 KEPLER_ASSET_NAME = { path = "toolsByName.kepler-formal.url", format = "basename" }
 KEPLER_SHA256 = { path = "toolsByName.kepler-formal.sha256" }
 KEPLER_URL = { path = "toolsByName.kepler-formal.url" }
+KEPLER_CNB_URL = { path = "toolsByName.kepler-formal.cnbUrl" }
 PDK_NAME = { path = "pdk.name" }
 PDK_VERSION = { path = "pdk.version" }
 PDK_BASE_ASSET_NAME = { path = "pdk.base.name" }

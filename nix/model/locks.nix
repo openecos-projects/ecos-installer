@@ -195,6 +195,7 @@ let
         size
         ;
     }
+    // lib.optionalAttrs (lock.cnbUrl != null) { cnb_url = lock.cnbUrl; }
     // lib.optionalAttrs (section ? metadata_url) { metadata_url = section.metadata_url; }
     // lib.optionalAttrs (section ? platform) { platform = section.platform; }
     // lib.optionalAttrs (lock.stripPrefix != null) { strip_prefix = lock.stripPrefix; };
