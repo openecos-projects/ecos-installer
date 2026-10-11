@@ -10,6 +10,22 @@
 # recipe never drifts from the lock-driven installer layout. All downloads
 # are public and anonymous.
 
+# Extract with the installer's extract_archive semantics: no ownership or
+# permission preservation, and only regular files, dirs, and symlinks
+# afterwards (reject_unexpected_types).
+nightly_pdk_extract() {
+  local archive="$1" dest="$2"
+  mkdir -p "$dest"
+  case "$archive" in
+  *.tar.bz2) tar --no-same-owner --no-same-permissions -xjf "$archive" -C "$dest" ;;
+  *) tar --no-same-owner --no-same-permissions -xf "$archive" -C "$dest" ;;
+  esac || nightly_die "extract failed: ${archive}"
+  local unexpected
+  unexpected="$(find "$dest" \( ! -type f ! -type d ! -type l \) -print)"
+  [ -z "$unexpected" ] ||
+    nightly_die "unexpected filesystem object types after extraction under ${dest}: ${unexpected}"
+}
+
 nightly_recipe_pdk() (
   tool=pdk
   : "${NIGHTLY_ASSETS_DIR:?}"
@@ -41,8 +57,7 @@ nightly_recipe_pdk() (
   base_url="$(nightly_pdk_interp "$(jq -r '.base.urlTemplate' "$NIGHTLY_PDK_MANIFEST")")"
   top_expected="$(nightly_pdk_interp "$(jq -r '.base.stripPrefix' "$NIGHTLY_PDK_MANIFEST")")"
   curl -fsSL --retry 3 --retry-delay 5 "$base_url" -o "$workdir/base.tar.gz"
-  mkdir -p "$workdir/base-x"
-  tar -xzf "$workdir/base.tar.gz" -C "$workdir/base-x"
+  nightly_pdk_extract "$workdir/base.tar.gz" "$workdir/base-x"
   [ -d "$workdir/base-x/$top_expected" ] ||
     nightly_die "base archive top directory is not ${top_expected} (GitHub archive layout changed?)"
   stage="$workdir/icsprout55-pdk-${version}"
@@ -59,8 +74,7 @@ nightly_recipe_pdk() (
     nightly_log "pdk package ${id} -> ${dest}"
     mkdir -p "$stage/$dest"
     curl -fsSL --retry 3 --retry-delay 5 "$url" -o "$workdir/pkg.tar.bz2" || nightly_die "download failed: ${url}"
-    tar --no-same-owner --no-same-permissions -xjf "$workdir/pkg.tar.bz2" -C "$stage/$dest" ||
-      nightly_die "extract failed: ${id}"
+    nightly_pdk_extract "$workdir/pkg.tar.bz2" "$stage/$dest"
   done <<<"$(jq -c '.packages[]' "$NIGHTLY_PDK_MANIFEST")"
 
   # Validate the assembled tree against the installer's file list.

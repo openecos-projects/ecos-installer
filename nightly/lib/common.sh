@@ -150,11 +150,12 @@ nightly_kepler_upstream() {
   printf '%s %s\n' "$tag" "$commit"
 }
 
-# Print the commit a tag points at (peeled for annotated tags).
+# Print the commit a tag points at (peeled for annotated tags; an exact
+# ref-pattern query alone returns only the tag object line).
 nightly_tag_commit() {
   local repo="$1" tag="$2"
   local out plain peeled
-  out="$(git ls-remote --tags "https://github.com/${repo}.git" "refs/tags/${tag}")" ||
+  out="$(git ls-remote --tags "https://github.com/${repo}.git" "refs/tags/${tag}" "refs/tags/${tag}^{}")" ||
     nightly_die "could not resolve tag ${tag} on ${repo}"
   peeled="$(printf '%s\n' "$out" | sed -n "s#\\([0-9a-f]\\{40\\}\\)[[:space:]]refs/tags/${tag//./\\.}\\^{}\$#\\1#p")"
   plain="$(printf '%s\n' "$out" | sed -n "s#\\([0-9a-f]\\{40\\}\\)[[:space:]]refs/tags/${tag//./\\.}\$#\\1#p")"
@@ -173,14 +174,16 @@ nightly_pdk_upstream() {
   local repo expected releases
   repo="$(nightly_tool_repo pdk)"
   expected="$(jq -r '.assetNames[]' "$NIGHTLY_PDK_MANIFEST")"
-  releases="$(nightly_gh api "repos/${repo}/releases?per_page=20" \
+  releases="$(nightly_gh api "repos/${repo}/releases?per_page=100" --paginate \
     --jq '.[] | select(.draft == false) | [.tag_name, .target_commitish, ([.assets[].name] | join(" "))] | @tsv')" ||
     nightly_die "could not list releases on ${repo}"
-  local line tag commit assets missing name
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    tag="$(printf '%s' "$line" | cut -f1)"
-    commit="$(printf '%s' "$line" | cut -f2)"
+  # Candidates newest-version-first: the API order is not version order, and
+  # a page window could otherwise hide the newest complete release.
+  local tags tag line assets missing name commit
+  tags="$(printf '%s\n' "$releases" | cut -f1 | nightly_sort_tags_desc)"
+  while IFS= read -r tag; do
+    [ -n "$tag" ] || continue
+    line="$(printf '%s\n' "$releases" | awk -F'\t' -v t="$tag" '$1 == t')"
     assets="$(printf '%s' "$line" | cut -f3)"
     missing=0
     while read -r name; do
@@ -198,7 +201,7 @@ nightly_pdk_upstream() {
       return 0
     fi
     nightly_log "pdk: release $tag lacks some packages; trying an older one"
-  done <<<"$releases"
+  done <<<"$tags"
   nightly_die "no complete PDK release found on ${repo}"
 }
 
