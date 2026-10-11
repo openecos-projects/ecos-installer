@@ -15,6 +15,7 @@ on:
           - ecc-sizer
           - kepler-formal
           - ecos-studio
+          - pdk
       force:
         description: Build even when the latest nightly already covers HEAD
         required: false

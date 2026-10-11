@@ -10,8 +10,38 @@
 
 {
   perSystem =
-    { pkgs, ... }:
+    {
+      config,
+      pkgs,
+      lib,
+      ...
+    }:
     let
+      # The PDK package set (base git archive + release packages with dest
+      # paths, plus the installer's validation file list) is single-sourced
+      # in toolchain.toml; the pdk recipe consumes this projection.
+      toolchain = config.ecos.toolchain;
+      pdkPkgs = toolchain.pdk_pkg;
+      basePkg = lib.findFirst (p: p.kind == "base") null pdkPkgs;
+      pdkManifest = pkgs.writeText "nightly-pdk-manifest.json" (
+        builtins.toJSON {
+          repo = "openecos-projects/icsprout55-pdk";
+          base = {
+            urlTemplate = basePkg.url_template;
+            stripPrefix = basePkg.strip_prefix;
+          };
+          packages = map (p: {
+            id = p.id;
+            urlTemplate = p.url_template;
+            dest = p.dest or "";
+          }) (builtins.filter (p: p.kind != "base") pdkPkgs);
+          assetNames = map (p: builtins.baseNameOf p.url_template) (
+            builtins.filter (p: p.kind != "base") pdkPkgs
+          );
+          verifyPaths = [ toolchain.pdk.tech_lef ] ++ toolchain.pdk.cell_lefs ++ toolchain.pdk.liberty_files;
+        }
+      );
+
       nightlyBuild = pkgs.writeShellApplication {
         name = "nightly-build";
         runtimeInputs = [
@@ -35,9 +65,13 @@
         ];
         text = ''
           ${builtins.readFile ../../nightly/lib/common.sh}
+          # The PDK manifest projected from toolchain.toml (single source of
+          # truth for the package set and validation paths).
+          NIGHTLY_PDK_MANIFEST=${pdkManifest}
           ${builtins.readFile ../../nightly/scripts/ecc.sh}
           ${builtins.readFile ../../nightly/scripts/ecc-sizer.sh}
           ${builtins.readFile ../../nightly/scripts/kepler-formal.sh}
+          ${builtins.readFile ../../nightly/scripts/pdk.sh}
           ${builtins.readFile ../../nightly/scripts/ecos-studio.sh}
           ${builtins.readFile ../../nightly/scripts/release.sh}
           ${builtins.readFile ../../nightly/dispatch.sh}

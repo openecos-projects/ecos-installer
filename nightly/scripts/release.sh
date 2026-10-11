@@ -85,10 +85,10 @@ Release: ${tag}
 | ecc-sizer | ${tool_version["ecc-sizer"]} | ${tool_commit["ecc-sizer"]} |
 | kepler-formal | ${tool_version["kepler-formal"]} | ${tool_commit["kepler-formal"]} |
 
-ecos-studio ships separately as its AppImage asset on the same release.
-
-Not included: the ICS55 PDK and OSS CAD Suite are stable, manually pinned
-components — install them once with the installer
+ecos-studio ships separately as its AppImage asset on the same release, and
+the assembled ICS55 PDK as icsprout55-pdk-<version>.tar.gz (extract and use
+directly). OSS CAD Suite stays out of the nightly channel — install it once
+with the installer
 (\`curl -fsSL https://release.openecos.com/installers/ecc/latest/ecc-installer.sh | sh -s -- --with-toolchain\`).
 
 Layout: \`ecc/\` — ECC CLI (PyInstaller onedir, run \`ecc/ecc\`),
