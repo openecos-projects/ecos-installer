@@ -146,12 +146,14 @@ EOF
     "${assets[@]}" || local_rc=$?
   [ "$local_rc" -eq 0 ] || nightly_die "gh release create ${tag} failed (exit ${local_rc})"
 
-  # Retention: keep the newest NIGHTLY_KEEP dated nightlies.
+  # Retention: keep the newest NIGHTLY_KEEP dated nightlies (by tag version,
+  # not API creation order).
   keep="${NIGHTLY_KEEP:-14}"
   [[ $keep =~ ^[1-9][0-9]*$ ]] || nightly_die "NIGHTLY_KEEP must be a positive integer, got '${keep}'"
   nightly_gh api "repos/${NIGHTLY_RELEASE_REPO}/releases?per_page=100" --paginate \
     --jq '.[] | select(.prerelease == true and .draft == false) | .tag_name' |
     { grep -E "$NIGHTLY_TAG_RE" || true; } |
+    nightly_sort_tags_desc |
     tail -n "+$((keep + 1))" | while read -r old; do
     [ -n "$old" ] || continue
     nightly_log "deleting old nightly ${old}"

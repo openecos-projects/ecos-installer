@@ -95,6 +95,15 @@
             test "$(nightly_increment_decimal 9)" = 10
             test "$(nightly_increment_decimal 99)" = 100
             test "$(nightly_increment_decimal 18446744073709551615)" = 18446744073709551616
+            # Tag ordering follows the tag's own SemVer, not API creation
+            # order (backfills with NIGHTLY_DATE must not become "latest").
+            sorted="$(
+              printf '%s\n' \
+                v0.1.0-nightly.20261010 \
+                v0.1.0-nightly.20261011 \
+                v0.1.0-nightly.20261010.2 | nightly_sort_tags_desc
+            )"
+            test "$sorted" = "$(printf '%s\n' v0.1.0-nightly.20261011 v0.1.0-nightly.20261010.2 v0.1.0-nightly.20261010)"
             echo ok > "$out"
           '';
     };

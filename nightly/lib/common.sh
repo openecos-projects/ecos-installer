@@ -277,12 +277,39 @@ nightly_recipe_tree() {
   fi
 }
 
+# Sort nightly tags newest-first (stdin, one per line) by the tag's own
+# SemVer semantics: the releases API returns creation order, which a backfill
+# with NIGHTLY_DATE would falsify. Selection sort; nightly tag counts are
+# tiny (bounded by NIGHTLY_KEEP).
+nightly_sort_tags_desc() {
+  local -a tags=()
+  mapfile -t tags
+  local i j best tmp
+  for ((i = 0; i < ${#tags[@]}; i++)); do
+    best=$i
+    for ((j = i + 1; j < ${#tags[@]}; j++)); do
+      if [ "$(nightly_semver_compare "${tags[j]#v}" "${tags[best]#v}")" = "1" ]; then
+        best=$j
+      fi
+    done
+    if [ "$best" != "$i" ]; then
+      tmp="${tags[i]}"
+      tags[i]="${tags[best]}"
+      tags[best]="$tmp"
+    fi
+  done
+  if [ ${#tags[@]} -gt 0 ]; then
+    printf '%s\n' "${tags[@]}"
+  fi
+}
+
 # Print the newest dated nightly release tag on the publish repository
 # (empty when none exists).
 nightly_latest_release_tag() {
   nightly_gh api "repos/${NIGHTLY_RELEASE_REPO}/releases?per_page=20" \
     --jq '.[] | select(.prerelease == true and .draft == false) | .tag_name' |
     { grep -E "$NIGHTLY_TAG_BODY_RE" || true; } |
+    nightly_sort_tags_desc |
     sed -n '1p'
 }
 

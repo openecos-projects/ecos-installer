@@ -48,8 +48,6 @@ nix run .#publish-registry-oss   # PUT the registry as the mutable tools/registr
 
 Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET` plus the bucket coordinates `OSS_BUCKET`, `OSS_ENDPOINT`, and `OSS_PUBLIC_BASE`; CI reads all five from repository secrets. A versioned object cannot be overwritten with different bytes. `latest` never moves to an older SemVer.
 
-Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET` plus the bucket coordinates `OSS_BUCKET`, `OSS_ENDPOINT`, and `OSS_PUBLIC_BASE`; CI reads all five from repository secrets. A versioned object cannot be overwritten with different bytes. `latest` never moves to an older SemVer.
-
 ## Nightly builds
 
 `nightly.yml` builds ecc, ecc-sizer, and ecos-studio from their default-branch HEAD every night and publishes **one dated prerelease on this repository** (oss-cad-suite-build style): `v0.1.0-nightly.<yyyymmdd>[.N]`, where `.N` is the same-day rerun suffix (auto-incremented past any colliding tag; `NIGHTLY_SUFFIX` overrides it). Published tags are never overwritten; the newest 14 dated nightlies are kept. Assets:
