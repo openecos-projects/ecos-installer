@@ -2,19 +2,23 @@
 # Concatenated after nightly/lib/common.sh and the recipe files, so every
 # nightly_* function is already defined.
 set -euo pipefail
+# Propagate errexit into command substitutions (off by default); several
+# helpers run multi-step logic inside $() and must abort on the first
+# failing step instead of continuing with empty values.
+shopt -s inherit_errexit
 # Locale-independent ordering for the SemVer string comparisons.
 export LC_ALL=C
 
 nightly_usage() {
   cat >&2 <<'EOF'
-usage: nightly-build <all|ecc|ecc-sizer|kepler-formal|ecos-studio|release>
+usage: nightly-build <all|ecc|ecc-sizer|kepler-formal|ecos-studio|pdk|release>
 
-Build the given tools from their default-branch HEAD and publish one dated
-nightly prerelease (v<base>-nightly.<yyyymmdd>[.N]) on this repository with
-the per-tool tarballs, the combined ecos-nightly bundle, and the ecos-studio
-AppImage as assets. A tool is skipped when the latest nightly already covers
-its HEAD with an unchanged recipe; when nothing moved, no release is
-created. `release` alone re-runs only the publish stage.
+Build the given tools and publish one dated nightly prerelease
+(v<base>-nightly.<yyyymmdd>[.N]) on this repository with the per-tool
+tarballs, the assembled ICS55 PDK tarball, the combined ecos-nightly bundle,
+and the ecos-studio AppImage as assets. A tool is skipped when the latest
+nightly already covers it with an unchanged recipe; when nothing moved, no
+release is created. `release` alone re-runs only the publish stage.
 
 environment:
   GH_TOKEN              required; the workflow's GITHUB_TOKEN (contents:write
@@ -42,7 +46,7 @@ case "$nightly_target" in
   nightly_usage
   exit 0
   ;;
-all | ecc | ecc-sizer | kepler-formal | ecos-studio | release) ;;
+all | ecc | ecc-sizer | kepler-formal | ecos-studio | pdk | release) ;;
 *)
   nightly_usage
   exit 1
@@ -76,6 +80,7 @@ all)
   nightly_recipe_ecc_sizer
   nightly_recipe_kepler_formal
   nightly_recipe_ecos_studio
+  nightly_recipe_pdk
   nightly_recipe_release
   ;;
 ecc)
@@ -92,6 +97,10 @@ kepler-formal)
   ;;
 ecos-studio)
   nightly_recipe_ecos_studio
+  nightly_recipe_release
+  ;;
+pdk)
+  nightly_recipe_pdk
   nightly_recipe_release
   ;;
 release)

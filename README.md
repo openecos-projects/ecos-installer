@@ -57,6 +57,8 @@ Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET` plus the bucket
 - `ECOS-Studio_<version>.AppImage` — the Linux GUI build
 - `.sha256` sidecars for everything
 
+Not in the bundle: the ICS55 PDK and OSS CAD Suite are stable, manually pinned components (~285 MB of content that is byte-identical every night) — install them once via the installer's `--with-toolchain`; the bundle README links to it. If the PDK ever starts moving quickly, it can join through the same aggregation pattern as kepler-formal.
+
 The release body records each tool's full version (`<toolbase>-nightly.<date>.g<sha>`, with the base being the tool's next planned release; kepler-formal's version comes from its own nightly tag) and source commit, plus compare links against the previous nightly. A tool is rebuilt only when its HEAD moved or the recipe (`nightly/` tree hash, recorded in the body) changed; unchanged tools carry their assets forward byte-identically, and when nothing moved at all no release is created.
 
 The nightly release is a standalone download channel: the registry and the installer keep tracking the tools' stable releases, and Studio's runtime downloads are unaffected. If a CNB mirror of this repository's releases is wanted, create the `cnb.cool/ecoslab/ecos-installer` sync first (CNB retains only the latest nightly, which matches the rolling semantics).
