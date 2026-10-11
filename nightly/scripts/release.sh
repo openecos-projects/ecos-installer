@@ -7,7 +7,8 @@
 nightly_recipe_release() (
   : "${NIGHTLY_ASSETS_DIR:?}"
   workdir="$(mktemp -d)"
-  trap 'rm -rf "$workdir"' EXIT
+  # Cleanup is best-effort: a leftover workdir must not fail a green run.
+  trap 'rm -rf "$workdir" 2>/dev/null || nightly_log "warning: could not clean $workdir"' EXIT
 
   latest_tag="$(nightly_latest_release_tag)"
   recipe_tree="$(nightly_recipe_tree)"

@@ -9,7 +9,8 @@ nightly_recipe_kepler_formal() (
   repo="$(nightly_tool_repo kepler-formal)"
   : "${NIGHTLY_ASSETS_DIR:?}"
   workdir="$(mktemp -d)"
-  trap 'rm -rf "$workdir"' EXIT
+  # Cleanup is best-effort: a leftover workdir must not fail a green run.
+  trap 'rm -rf "$workdir" 2>/dev/null || nightly_log "warning: could not clean $workdir"' EXIT
 
   up="$(nightly_kepler_upstream)"
   upstream_tag="${up%% *}"

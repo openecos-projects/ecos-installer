@@ -53,6 +53,10 @@ uv sync --frozen --all-groups --python 3.11 --managed-python --inexact \
 uv run --no-sync --managed-python pyinstaller ecc.spec --clean
 mkdir -p dist/release
 tar -cf - -C dist/ecc . | gzip -n -9 >dist/release/ecc-cli-linux-x86_64.tar.gz
+
+# The container runs as root; hand everything back to the host user so the
+# host-side cleanup can remove the workdir.
+chown -R "$(stat -c %u:%g /work)" /work
 CONTAINER_EOF
   chmod +x "$1"
 }
@@ -103,7 +107,8 @@ nightly_recipe_ecc() (
   command -v docker >/dev/null 2>&1 || nightly_die "ecc recipe builds inside the manylinux container and needs docker"
 
   workdir="$(mktemp -d)"
-  trap 'rm -rf "$workdir"' EXIT
+  # Cleanup is best-effort: a leftover workdir must not fail a green run.
+  trap 'rm -rf "$workdir" 2>/dev/null || nightly_log "warning: could not clean $workdir"' EXIT
 
   nightly_clone "$repo" "$workdir/src"
   git -C "$workdir/src" fetch --depth 1 origin "$head"
