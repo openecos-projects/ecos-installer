@@ -59,9 +59,14 @@ CONTAINER_EOF
 
 # Download one native-wheel CI artifact for the submodule pinned at
 # <submodule path> in the source checkout (upstream setup-python-deps,
-# build-all=false). Runs on the host through the read-only deps token.
+# build-all=false). Runs on the host through the read-only deps token —
+# Actions reads cannot fall back to the release token (a GITHUB_TOKEN cannot
+# read other repositories' Actions).
 nightly_ecc_download_wheel() {
   local src="$1" repo="$2" submodule_path="$3" artifact_name="$4"
+  if [ -z "${NIGHTLY_DEPS_TOKEN:-}" ]; then
+    nightly_die "NIGHTLY_READ_TOKEN not set (needs Actions:read on ecc-dreamplace and ecc-tools for CI artifact downloads)"
+  fi
   local commit run_id
   commit="$(git -C "$src" rev-parse "HEAD:${submodule_path}")"
   run_id="$(

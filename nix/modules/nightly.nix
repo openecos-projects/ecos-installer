@@ -37,6 +37,7 @@
           ${builtins.readFile ../../nightly/lib/common.sh}
           ${builtins.readFile ../../nightly/scripts/ecc.sh}
           ${builtins.readFile ../../nightly/scripts/ecc-sizer.sh}
+          ${builtins.readFile ../../nightly/scripts/kepler-formal.sh}
           ${builtins.readFile ../../nightly/scripts/ecos-studio.sh}
           ${builtins.readFile ../../nightly/scripts/release.sh}
           ${builtins.readFile ../../nightly/dispatch.sh}

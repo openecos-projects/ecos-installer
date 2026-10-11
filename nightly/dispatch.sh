@@ -7,7 +7,7 @@ export LC_ALL=C
 
 nightly_usage() {
   cat >&2 <<'EOF'
-usage: nightly-build <all|ecc|ecc-sizer|ecos-studio|release>
+usage: nightly-build <all|ecc|ecc-sizer|kepler-formal|ecos-studio|release>
 
 Build the given tools from their default-branch HEAD and publish one dated
 nightly prerelease (v<base>-nightly.<yyyymmdd>[.N]) on this repository with
@@ -42,7 +42,7 @@ case "$nightly_target" in
   nightly_usage
   exit 0
   ;;
-all | ecc | ecc-sizer | ecos-studio | release) ;;
+all | ecc | ecc-sizer | kepler-formal | ecos-studio | release) ;;
 *)
   nightly_usage
   exit 1
@@ -74,6 +74,7 @@ case "$nightly_target" in
 all)
   nightly_recipe_ecc
   nightly_recipe_ecc_sizer
+  nightly_recipe_kepler_formal
   nightly_recipe_ecos_studio
   nightly_recipe_release
   ;;
@@ -83,6 +84,10 @@ ecc)
   ;;
 ecc-sizer)
   nightly_recipe_ecc_sizer
+  nightly_recipe_release
+  ;;
+kepler-formal)
+  nightly_recipe_kepler_formal
   nightly_recipe_release
   ;;
 ecos-studio)
