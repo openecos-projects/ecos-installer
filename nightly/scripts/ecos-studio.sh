@@ -17,7 +17,8 @@ nightly_recipe_ecos_studio() (
 
   : "${NIGHTLY_ASSETS_DIR:?}"
   workdir="$(mktemp -d)"
-  trap 'rm -rf "$workdir"' EXIT
+  # Cleanup is best-effort: a leftover workdir must not fail a green run.
+  trap 'rm -rf "$workdir" 2>/dev/null || nightly_log "warning: could not clean $workdir"' EXIT
 
   nightly_clone "$repo" "$workdir/src"
   cd "$workdir/src" || exit 1
