@@ -31,30 +31,22 @@ permissions:
 jobs:
   nightly:
     name: Build and publish the nightly release
-    # ubuntu-22.04 matches the sizer and studio release builds; the ecc
-    # recipe runs its build inside the manylinux_2_34 container, so the host
-    # only needs docker. One serial job: ecc-sizer's artifact feeds the
-    # ecos-studio build directly, and the publish stage assembles everything
-    # from one shared staging directory.
+    # ubuntu-22.04 matches the ecos-studio release build; the ecc and
+    # ecc-sizer recipes only aggregate upstream CI artifacts (ecc still uses
+    # docker for its clean-distro smoke test).
     runs-on: ubuntu-22.04
     concurrency:
       group: nightly-build
       cancel-in-progress: false
-    timeout-minutes: 360
+    timeout-minutes: 180
     env:
       NIGHTLY_FORCE: ${{ inputs.force == true && '1' || '' }}
       NIGHTLY_SUFFIX: ${{ inputs.suffix || '' }}
-      # sccache-action does not enable the GHA cache backend by itself.
-      SCCACHE_GHA_ENABLED: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Setup Nix
         uses: ./.github/actions/setup-nix
-      # The sizer build script picks up sccache as the CMake compiler
-      # launcher when it is on PATH.
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.10
       # Pin the Rust toolchain for the studio chip-viewer build; the
       # runner's preinstalled Rust drifts with the image.
       - name: Setup Rust

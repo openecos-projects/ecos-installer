@@ -25,9 +25,9 @@ environment:
                         on this repository)
   NIGHTLY_ASSETS_DIR    required; absolute path of the run's asset staging
                         directory
-  NIGHTLY_READ_TOKEN    required by the ecc recipe; read-only token with
-                        Actions:read on ecc (nightly CI gate) and on
-                        ecc-dreamplace / ecc-tools (CI artifacts)
+  NIGHTLY_READ_TOKEN    required by the ecc and ecc-sizer recipes; read-only
+                        token with Actions:read on ecc (nightly CI gate +
+                        CI artifacts) and ecc-sizer (CI artifacts)
   NIGHTLY_RECIPE_TREE   recipe tree hash for the skip check (default: the
                         caller's HEAD:nightly, else "unknown" = never skip)
   NIGHTLY_FORCE=1       build even when a nightly already covers HEAD
