@@ -19,6 +19,10 @@ else
   echo "usage: publish-oss [ecc-installer.sh|v<tag>]" >&2
   exit 1
 fi
+# decide-cli.nix reads the candidate through an absolute Nix path
+# (/. + candidateFile), so the installer path must be absolute no matter how
+# it was passed in (the workflow passes artifact/ecc-installer.sh).
+installer="$(realpath "$installer")"
 
 version="$(sed -n 's/^ECC_VERSION="\(.*\)"/\1/p' "$installer" | head -n1)"
 tag="v${version}"

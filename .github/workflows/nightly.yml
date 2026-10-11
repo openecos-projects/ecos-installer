@@ -1,0 +1,86 @@
+name: Nightly build release
+on:
+  schedule:
+    # 18:41 UTC daily; off the :00/:30 marks.
+    - cron: "41 18 * * *"
+  workflow_dispatch:
+    inputs:
+      tool:
+        description: Which tool to build (the release always carries every tool)
+        required: true
+        type: choice
+        options:
+          - all
+          - ecc
+          - ecc-sizer
+          - ecos-studio
+      force:
+        description: Build even when the latest nightly already covers HEAD
+        required: false
+        type: boolean
+        default: false
+      suffix:
+        description: Same-day rerun suffix (integer >= 2) appended to the nightly tag
+        required: false
+        type: string
+permissions:
+  # The dated nightly prerelease is created on this repository with the
+  # workflow's own token; the write stays scoped to the single build step.
+  contents: write
+jobs:
+  nightly:
+    name: Build and publish the nightly release
+    # ubuntu-22.04 matches the sizer and studio release builds; the ecc
+    # recipe runs its build inside the manylinux_2_34 container, so the host
+    # only needs docker. One serial job: ecc-sizer's artifact feeds the
+    # ecos-studio build directly, and the publish stage assembles everything
+    # from one shared staging directory.
+    runs-on: ubuntu-22.04
+    concurrency:
+      group: nightly-build
+      cancel-in-progress: false
+    timeout-minutes: 360
+    env:
+      NIGHTLY_FORCE: ${{ inputs.force == true && '1' || '' }}
+      NIGHTLY_SUFFIX: ${{ inputs.suffix || '' }}
+      # sccache-action does not enable the GHA cache backend by itself.
+      SCCACHE_GHA_ENABLED: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+      # The sizer build script picks up sccache as the CMake compiler
+      # launcher when it is on PATH.
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+      # Pin the Rust toolchain for the studio chip-viewer build; the
+      # runner's preinstalled Rust drifts with the image.
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Prepare asset staging
+        # runner.temp is only available in step contexts, not job-level env.
+        run: |
+          echo "NIGHTLY_ASSETS_DIR=${{ runner.temp }}/nightly-assets" >> "$GITHUB_ENV"
+          mkdir -p "$NIGHTLY_ASSETS_DIR"
+      # The recipe tree hash feeds the skip check (rebuild on recipe change
+      # even when no source HEAD moved).
+      - name: Record recipe tree
+        run: echo "NIGHTLY_RECIPE_TREE=$(git rev-parse HEAD:nightly)" >> "$GITHUB_ENV"
+      # Tokens stay scoped to this step: the nix wrapper moves them into
+      # unexported shell variables before running any third-party build code
+      # (container, make, pnpm) and only hands them to gh invocations.
+      - name: Build and publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NIGHTLY_READ_TOKEN: ${{ secrets.NIGHTLY_READ_TOKEN }}
+        run: |
+          set -o pipefail
+          nix run .#nightly-build -- ${{ inputs.tool || 'all' }} 2>&1 | tee nightly.log
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-log
+          path: nightly.log
+          retention-days: 14

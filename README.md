@@ -48,6 +48,23 @@ nix run .#publish-registry-oss   # PUT the registry as the mutable tools/registr
 
 Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET` plus the bucket coordinates `OSS_BUCKET`, `OSS_ENDPOINT`, and `OSS_PUBLIC_BASE`; CI reads all five from repository secrets. A versioned object cannot be overwritten with different bytes. `latest` never moves to an older SemVer.
 
+## Nightly builds
+
+`nightly.yml` builds ecc, ecc-sizer, and ecos-studio every night and publishes **one dated prerelease on this repository** (oss-cad-suite-build style): `v0.1.0-nightly.<yyyymmdd>[.N]`, where `.N` is the same-day rerun suffix (auto-incremented past any colliding tag; `NIGHTLY_SUFFIX` overrides it). ecc is gated on its repository's nightly CI check (the existing `ci.yml` schedule at 18:17 UTC): the build uses the newest main commit with a green scheduled run, never a commit whose tests haven't passed; when no green run exists yet, ecc is skipped for the night (and its assets carry forward). The other tools track their default-branch HEAD directly. Published tags are never overwritten; the newest 14 dated nightlies are kept. Assets:
+
+- `ecos-nightly-linux-x86_64.tar.gz` — combined bundle (ecc/ PyInstaller onedir + ecc-sizer/ portable runtime), for direct download
+- `ecc-cli-linux-x86_64.tar.gz`, `ecc-sizer-<version>-linux-x64.tar.gz` — the per-tool tarballs
+- `ECOS-Studio_<version>.AppImage` — the Linux GUI build
+- `.sha256` sidecars for everything
+
+The release body records each tool's full version (`<toolbase>-nightly.<date>.g<sha>`, with the base being the tool's next planned release) and source commit, plus compare links against the previous nightly. A tool is rebuilt only when its HEAD moved or the recipe (`nightly/` tree hash, recorded in the body) changed; unchanged tools carry their assets forward byte-identically, and when nothing moved at all no release is created. kepler-formal already runs an equivalent nightly pipeline in its own repository and is not rebuilt here.
+
+The nightly release is a standalone download channel: the registry and the installer keep tracking the tools' stable releases, and Studio's runtime downloads are unaffected. If a CNB mirror of this repository's releases is wanted, create the `cnb.cool/ecoslab/ecos-installer` sync first (CNB retains only the latest nightly, which matches the rolling semantics).
+
+The builds are driven by `nix run .#nightly-build -- <all|ecc|ecc-sizer|ecos-studio|release>`, but nix only wraps the orchestration — the builds run each tool's native pipeline (manylinux_2_34 container + PyInstaller for ecc, the repository's own CMake/lddtree scripts for ecc-sizer, the repository Makefile for the ecos-studio AppImage), so published artifacts never reference `/nix/store`. Every artifact passes a smoke test before the release is created (the ecc tarball additionally runs on a clean ubuntu:24.04 container). The workflow runs as one serial job: ecc-sizer builds before ecos-studio because the AppImage bundles the sizer runtime, preferring that run's fresh build over the carried-forward one.
+
+Manual triggers: `nightly.yml`'s `workflow_dispatch` takes `tool` (all or one), `force` (build even when HEAD is already covered), and `suffix` (same-day rerun). Tokens: the release itself uses the workflow's `GITHUB_TOKEN` (`contents: write` on this repository, injected only into the build step); the ecc recipe additionally needs a `NIGHTLY_READ_TOKEN` repository secret — a read-only fine-grained PAT with Actions: read on `ecc`, `ecc-dreamplace`, and `ecc-tools` — to read ecc's nightly CI gate and to download the submodule-pinned native-wheel CI artifacts on the host. Third-party build code (container, make, pnpm) never sees either token. For local runs, ecc additionally needs docker (the build runs in the manylinux container) and ecc-sizer/ecos-studio expect an Ubuntu 22.04 host.
+
 `publish-installer.yml` also runs automatically on every push to main that changes the ecc lock version (which is exactly what a merged `bot/lock-bump` PR does when ecc drifted): it re-runs the flake checks, builds the installer from the locked versions, and publishes the locked tag. Pushes that touch the lock file without changing the ecc version are skipped. The auto-publish job runs on the `installer-deploy` environment — configure a required reviewer on it in the repository settings so every installer release gets an explicit human approval. The built script is uploaded as the `ecc-installer` workflow artifact before the gate, so the reviewer can download the exact bytes that will be published; the publish job re-checks that the artifact's `ECC_VERSION` matches the lock tag. Manual dispatches run on the unprotected `installer-manual` environment; the dispatch itself is the approval.
 
 
@@ -60,6 +77,8 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 | `semver` | SemVer 2.0.0 order: `0.1.0-alpha.10` < `alpha.11` < `0.1.0`; numeric ident `0`; build metadata ignored |
 | `installer-render` | Render the installer from the current TOML; reject darwin / empty Liberty lists; no leftover placeholders |
 | `publish` | `latest` policy: missing → advance, older → keep, same version + same bytes → keep, same version + different bytes → reject, malformed `ECC_VERSION` → reject |
+| `nightly-syntax` | `bash -n` and `shellcheck` on the nightly driver and recipes, plus unit assertions for the bash SemVer compare and decimal increment |
+| `actionlint` | `actionlint` over `.github/workflows` (expression validity, context availability) |
 | `archive` | `tarfile` safety on synthetic tars: traversal, absolute paths, control characters, escaping links, FIFOs, empty Liberty inventories |
 | `installer-syntax` | `dash -n`, `bash -n`, and `shellcheck -s dash -S error` on the generated script |
 | `installer-e2e` | Fake archives over local HTTP: GitHub success, GitHub failure then CNB, checksum mismatch, unsupported platform, wrapper env, lock, receipt, toolchain fallback |
