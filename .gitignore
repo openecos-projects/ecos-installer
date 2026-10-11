@@ -19,3 +19,4 @@ cloudflare/node_modules/
 
 # bump driver concurrency lock
 nix/_sources/.bump.lock
+.humanize/
