@@ -11,14 +11,14 @@ export LC_ALL=C
 
 nightly_usage() {
   cat >&2 <<'EOF'
-usage: nightly-build <all|ecc|ecc-sizer|kepler-formal|ecos-studio|pdk|release>
+usage: nightly-build <all|ecc|ecc-sizer|kepler-formal|ecos-studio|release>
 
 Build the given tools and publish one dated nightly prerelease
 (v<base>-nightly.<yyyymmdd>[.N]) on this repository with the per-tool
-tarballs, the assembled ICS55 PDK tarball, the combined ecos-nightly bundle,
-and the ecos-studio AppImage as assets. A tool is skipped when the latest
-nightly already covers it with an unchanged recipe; when nothing moved, no
-release is created. `release` alone re-runs only the publish stage.
+tarballs, the combined ecos-nightly bundle, and the ecos-studio AppImage as
+assets. A tool is skipped when the latest nightly already covers it with an
+unchanged recipe; when nothing moved, no release is created. `release`
+alone re-runs only the publish stage.
 
 environment:
   GH_TOKEN              required; the workflow's GITHUB_TOKEN (contents:write
@@ -46,7 +46,7 @@ case "$nightly_target" in
   nightly_usage
   exit 0
   ;;
-all | ecc | ecc-sizer | kepler-formal | ecos-studio | pdk | release) ;;
+all | ecc | ecc-sizer | kepler-formal | ecos-studio | release) ;;
 *)
   nightly_usage
   exit 1
@@ -80,7 +80,6 @@ all)
   nightly_recipe_ecc_sizer
   nightly_recipe_kepler_formal
   nightly_recipe_ecos_studio
-  nightly_recipe_pdk
   nightly_recipe_release
   ;;
 ecc)
@@ -97,10 +96,6 @@ kepler-formal)
   ;;
 ecos-studio)
   nightly_recipe_ecos_studio
-  nightly_recipe_release
-  ;;
-pdk)
-  nightly_recipe_pdk
   nightly_recipe_release
   ;;
 release)
