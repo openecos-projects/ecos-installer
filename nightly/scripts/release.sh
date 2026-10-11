@@ -59,15 +59,18 @@ nightly_recipe_release() (
 
   # The combined bundle (for humans; the installer/registry keep consuming
   # the per-tool assets): ecc/ holds the PyInstaller onedir contents,
-  # ecc-sizer/ the portable runtime.
+  # ecc-sizer/ and kepler-formal/ the portable runtimes.
   bundle_name="ecos-nightly-linux-x86_64"
   bundle_root="$workdir/$bundle_name"
-  mkdir -p "$bundle_root/ecc" "$bundle_root/ecc-sizer"
+  mkdir -p "$bundle_root/ecc" "$bundle_root/ecc-sizer" "$bundle_root/kepler-formal"
   tar -xzf "$NIGHTLY_ASSETS_DIR/ecc-cli-linux-x86_64.tar.gz" -C "$bundle_root/ecc"
   shopt -s nullglob
   sizer_tarballs=("$NIGHTLY_ASSETS_DIR"/ecc-sizer-*-linux-x64.tar.gz)
   [ ${#sizer_tarballs[@]} -ge 1 ] || nightly_die "no ecc-sizer tarball available for the bundle"
   tar -xzf "${sizer_tarballs[0]}" --strip-components 1 -C "$bundle_root/ecc-sizer"
+  kepler_tarballs=("$NIGHTLY_ASSETS_DIR"/kepler-formal-*-linux-x86_64.tar.gz)
+  [ ${#kepler_tarballs[@]} -ge 1 ] || nightly_die "no kepler-formal tarball available for the bundle"
+  tar -xzf "${kepler_tarballs[0]}" --strip-components 1 -C "$bundle_root/kepler-formal"
 
   tag="$(nightly_repo_tag)"
   cat >"$bundle_root/README.md" <<EOF
@@ -79,11 +82,13 @@ Release: ${tag}
 |---|---|---|
 | ecc | ${tool_version[ecc]} | ${tool_commit[ecc]} |
 | ecc-sizer | ${tool_version["ecc-sizer"]} | ${tool_commit["ecc-sizer"]} |
+| kepler-formal | ${tool_version["kepler-formal"]} | ${tool_commit["kepler-formal"]} |
 
 ecos-studio ships separately as its AppImage asset on the same release.
 
 Layout: \`ecc/\` — ECC CLI (PyInstaller onedir, run \`ecc/ecc\`),
-\`ecc-sizer/\` — portable Sizer runtime (run \`ecc-sizer/bin/Sizer\`).
+\`ecc-sizer/\` — portable Sizer runtime (run \`ecc-sizer/bin/Sizer\`),
+\`kepler-formal/\` — Kepler formal verification (run \`kepler-formal/kepler-formal\`).
 
 Unstable nightly build; use the stable releases of the individual tools for
 production.
@@ -97,7 +102,7 @@ EOF
   # nightly-recipe-tree lines back).
   notes="$workdir/notes.md"
   {
-    echo "Nightly build of the ECOS toolchain (ecc, ecc-sizer, ecos-studio)."
+    echo "Nightly build of the ECOS toolchain (ecc, ecc-sizer, kepler-formal, ecos-studio)."
     echo
     echo "| tool | version | commit |"
     echo "|---|---|---|"

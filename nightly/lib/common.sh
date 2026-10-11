@@ -49,7 +49,7 @@ NIGHTLY_BASE_TAG_RE='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1
 # Consumed by the recipes and the publish stage (concatenated into the same
 # app; shellcheck sees this file in isolation).
 # shellcheck disable=SC2034
-NIGHTLY_TOOLS="ecc ecc-sizer ecos-studio"
+NIGHTLY_TOOLS="ecc ecc-sizer kepler-formal ecos-studio"
 NIGHTLY_RELEASE_REPO="${NIGHTLY_RELEASE_REPO:-openecos-projects/ecos-installer}"
 
 nightly_log() {
@@ -69,13 +69,12 @@ nightly_gh() {
 }
 
 # gh for cross-repo dependency reads (CI artifacts of ecc-dreamplace /
-# ecc-tools). Uses the read-only NIGHTLY_READ_TOKEN when present so the
-# release token's scope stays minimal.
+# ecc-tools, the kepler-formal nightly release listing). Uses the read-only
+# NIGHTLY_READ_TOKEN when present so the release token's scope stays minimal;
+# falls back to the release token (works for public-repo release reads, but
+# not for cross-repo Actions).
 nightly_gh_deps() {
-  local token="${NIGHTLY_DEPS_TOKEN:-}"
-  if [ -z "$token" ]; then
-    nightly_die "NIGHTLY_READ_TOKEN not set (needs Actions:read on ecc-dreamplace and ecc-tools for CI artifact downloads)"
-  fi
+  local token="${NIGHTLY_DEPS_TOKEN:-$NIGHTLY_GH_TOKEN}"
   GH_TOKEN="$token" gh "$@"
 }
 
@@ -83,6 +82,7 @@ nightly_tool_repo() {
   case "$1" in
   ecc) printf 'openecos-projects/ecc\n' ;;
   ecc-sizer) printf 'openecos-projects/ecc-sizer\n' ;;
+  kepler-formal) printf 'openecos-projects/kepler-formal\n' ;;
   ecos-studio) printf 'openecos-projects/ecos-studio\n' ;;
   *) nightly_die "unknown tool: $1" ;;
   esac
@@ -119,16 +119,41 @@ nightly_checked_head() {
   printf '%s\n' "$sha"
 }
 
+# Print "<tag> <target_commitish>" of the newest kepler-formal nightly
+# prerelease upstream (their pipeline skips days without changes, so this
+# deliberately lags the default-branch HEAD).
+nightly_kepler_upstream() {
+  local repo tag commit
+  repo="$(nightly_tool_repo kepler-formal)"
+  tag="$(nightly_gh_deps api "repos/${repo}/releases?per_page=20" \
+    --jq '.[] | select(.prerelease == true and .draft == false) | .tag_name' |
+    { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}(\.[1-9][0-9]*)?$' || true; } |
+    nightly_sort_tags_desc |
+    sed -n '1p')"
+  [ -n "$tag" ] || nightly_die "no nightly prerelease found on ${repo}"
+  commit="$(nightly_gh_deps api "repos/${repo}/releases/tags/${tag}" --jq '.target_commitish')"
+  printf '%s %s\n' "$tag" "$commit"
+}
+
 # The commit a tool's nightly is allowed to build. ecc is gated on its
-# repository's nightly CI check (ci.yml on a schedule); everything else
-# tracks the default-branch HEAD directly.
+# repository's nightly CI check (ci.yml on a schedule); kepler-formal follows
+# its own repository's latest nightly build; everything else tracks the
+# default-branch HEAD directly.
 nightly_effective_head() {
   local tool="$1" repo="$2"
-  if [ "$tool" = "ecc" ]; then
+  case "$tool" in
+  ecc)
     nightly_checked_head "$repo" ci.yml
-  else
+    ;;
+  kepler-formal)
+    local up
+    up="$(nightly_kepler_upstream)"
+    printf '%s\n' "${up#* }"
+    ;;
+  *)
     nightly_resolve_head "$repo"
-  fi
+    ;;
+  esac
 }
 
 # Compare two numeric SemVer identifiers without arithmetic (no overflow on
@@ -443,6 +468,7 @@ nightly_carry_forward() {
   case "$tool" in
   ecc) pattern='ecc-cli-linux-x86_64.tar.gz*' ;;
   ecc-sizer) pattern='ecc-sizer-*.tar.gz*' ;;
+  kepler-formal) pattern='kepler-formal-*.tar.gz*' ;;
   ecos-studio) pattern='ECOS-Studio*.AppImage*' ;;
   *) nightly_die "unknown tool: $tool" ;;
   esac
