@@ -60,10 +60,13 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Prepare asset staging
-        # runner.temp is only available in step contexts, not job-level env.
+        # runner.temp is only available in step contexts, and $GITHUB_ENV
+        # writes take effect in later steps, not this one — so use a local
+        # variable here and export it for the build step.
         run: |
-          echo "NIGHTLY_ASSETS_DIR=${{ runner.temp }}/nightly-assets" >> "$GITHUB_ENV"
-          mkdir -p "$NIGHTLY_ASSETS_DIR"
+          assets_dir="${{ runner.temp }}/nightly-assets"
+          mkdir -p "$assets_dir"
+          echo "NIGHTLY_ASSETS_DIR=$assets_dir" >> "$GITHUB_ENV"
       # The recipe tree hash feeds the skip check (rebuild on recipe change
       # even when no source HEAD moved).
       - name: Record recipe tree
