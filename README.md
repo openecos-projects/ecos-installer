@@ -78,6 +78,7 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 | `installer-render` | Render the installer from the current TOML; reject darwin / empty Liberty lists; no leftover placeholders |
 | `publish` | `latest` policy: missing → advance, older → keep, same version + same bytes → keep, same version + different bytes → reject, malformed `ECC_VERSION` → reject |
 | `nightly-syntax` | `bash -n` and `shellcheck` on the nightly driver and recipes, plus unit assertions for the bash SemVer compare and decimal increment |
+| `actionlint` | `actionlint` over `.github/workflows` (expression validity, context availability) |
 | `archive` | `tarfile` safety on synthetic tars: traversal, absolute paths, control characters, escaping links, FIFOs, empty Liberty inventories |
 | `installer-syntax` | `dash -n`, `bash -n`, and `shellcheck -s dash -S error` on the generated script |
 | `installer-e2e` | Fake archives over local HTTP: GitHub success, GitHub failure then CNB, checksum mismatch, unsupported platform, wrapper env, lock, receipt, toolchain fallback |
