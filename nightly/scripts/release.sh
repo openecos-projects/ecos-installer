@@ -13,18 +13,20 @@ nightly_recipe_release() (
   recipe_tree="$(nightly_recipe_tree)"
 
   # Per tool: fresh assets built this run, or carry-forward from the latest
-  # nightly (only valid when the tool's HEAD is unchanged since then).
+  # nightly. Carry is valid only when the tool's effective head (for ecc: the
+  # latest commit with a green nightly check, not bare HEAD) is unchanged
+  # since then. Fresh assets are trusted as-is: they were validated against
+  # the effective head at build time, which may legitimately have advanced
+  # during the run.
   declare -A tool_version=()
   declare -A tool_commit=()
   fresh_tools=()
   carry_tools=()
   for tool in $NIGHTLY_TOOLS; do
     repo="$(nightly_tool_repo "$tool")"
-    head="$(nightly_resolve_head "$repo")"
+    head="$(nightly_effective_head "$tool" "$repo")"
     if [ -f "$NIGHTLY_ASSETS_DIR/${tool}.commit" ]; then
       built="$(cat "$NIGHTLY_ASSETS_DIR/${tool}.commit")"
-      [ "$built" = "$head" ] ||
-        nightly_die "$tool was built from $built but HEAD moved to $head during the run; re-run the workflow"
       [ -f "$NIGHTLY_ASSETS_DIR/${tool}.version" ] || nightly_die "$tool: missing version file"
       tool_version[$tool]="$(cat "$NIGHTLY_ASSETS_DIR/${tool}.version")"
       tool_commit[$tool]="$built"
@@ -32,8 +34,14 @@ nightly_recipe_release() (
     else
       [ -n "$latest_tag" ] || nightly_die "$tool: no fresh assets and no previous nightly to carry from"
       recorded="$(nightly_release_field "$latest_tag" "${tool}-commit")"
-      [ "$recorded" = "$head" ] ||
-        nightly_die "$tool moved ($recorded -> $head) but was not rebuilt this run"
+      if [ -n "$head" ]; then
+        [ "$recorded" = "$head" ] ||
+          nightly_die "$tool moved ($recorded -> $head) but was not rebuilt this run"
+      else
+        # No effective head (ecc without any green nightly check): carrying
+        # the recorded build is the only option.
+        [ -n "$recorded" ] || nightly_die "$tool: nothing recorded in $latest_tag and nothing built"
+      fi
       tool_version[$tool]="$(nightly_release_field "$latest_tag" "${tool}-version")"
       tool_commit[$tool]="$recorded"
       carry_tools+=("$tool")

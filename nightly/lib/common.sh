@@ -100,6 +100,28 @@ nightly_resolve_head() {
   printf '%s\n' "$sha"
 }
 
+# Print the newest commit on <repo>'s main with a successful scheduled (or
+# manually dispatched) run of <workflow> — the "nightly check" gate. Empty
+# when no green run exists yet. Needs the deps token (Actions:read).
+nightly_checked_head() {
+  local repo="$1" workflow="$2"
+  nightly_gh_deps api \
+    "repos/${repo}/actions/workflows/${workflow}/runs?branch=main&status=completed&per_page=30" \
+    --jq '[.workflow_runs[] | select((.event == "schedule" or .event == "workflow_dispatch") and .conclusion == "success") | .head_sha][0] // empty'
+}
+
+# The commit a tool's nightly is allowed to build. ecc is gated on its
+# repository's nightly CI check (ci.yml on a schedule); everything else
+# tracks the default-branch HEAD directly.
+nightly_effective_head() {
+  local tool="$1" repo="$2"
+  if [ "$tool" = "ecc" ]; then
+    nightly_checked_head "$repo" ci.yml
+  else
+    nightly_resolve_head "$repo"
+  fi
+}
+
 # Compare two numeric SemVer identifiers without arithmetic (no overflow on
 # huge-but-legal identifiers): strict SemVer forbids leading zeros, so a
 # longer digit string is the larger number, and equal-length strings compare

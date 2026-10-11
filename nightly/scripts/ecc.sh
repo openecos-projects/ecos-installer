@@ -81,12 +81,18 @@ nightly_ecc_download_wheel() {
 nightly_recipe_ecc() (
   tool=ecc
   repo="$(nightly_tool_repo ecc)"
-  head="$(nightly_resolve_head "$repo")"
+  # The ecc nightly builds the newest main commit with a green nightly CI
+  # check (ci.yml on a schedule), not the bare HEAD.
+  head="$(nightly_effective_head "$tool" "$repo")"
+  if [ -z "$head" ]; then
+    nightly_log "ecc: no green scheduled CI run on main yet; skipping tonight's ecc build"
+    exit 0
+  fi
   if ! nightly_tool_should_build "$tool" "$head"; then
     exit 0
   fi
   version="$(nightly_tool_version "$repo" "$head")"
-  nightly_log "building ecc ${version} from ${head}"
+  nightly_log "building ecc ${version} from ${head} (latest green nightly check)"
 
   : "${NIGHTLY_ASSETS_DIR:?}"
   command -v docker >/dev/null 2>&1 || nightly_die "ecc recipe builds inside the manylinux container and needs docker"
@@ -94,7 +100,10 @@ nightly_recipe_ecc() (
   workdir="$(mktemp -d)"
   trap 'rm -rf "$workdir"' EXIT
 
-  nightly_clone "$repo" "$workdir/src" --recurse-submodules --shallow-submodules
+  nightly_clone "$repo" "$workdir/src"
+  git -C "$workdir/src" fetch --depth 1 origin "$head"
+  git -C "$workdir/src" checkout --detach "$head"
+  git -C "$workdir/src" submodule update --init --recursive --depth 1
   mkdir -p "$workdir/src/dist/native-wheels"
   nightly_ecc_download_wheel "$workdir/src" \
     "openecos-projects/ecc-dreamplace" \
