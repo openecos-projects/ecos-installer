@@ -100,14 +100,23 @@ nightly_resolve_head() {
   printf '%s\n' "$sha"
 }
 
-# Print the newest commit on <repo>'s main with a successful scheduled (or
-# manually dispatched) run of <workflow> — the "nightly check" gate. Empty
-# when no green run exists yet. Needs the deps token (Actions:read).
+# Print the newest commit on <repo>'s main with a successful scheduled run
+# of <workflow> — the "nightly check" gate. A manually dispatched green run
+# is the bootstrap/fallback. Empty when no green run exists yet. The event
+# filter is server-side (per_page=5 is ample for a daily schedule), so no
+# pagination is needed. Needs the deps token (Actions:read).
 nightly_checked_head() {
   local repo="$1" workflow="$2"
-  nightly_gh_deps api \
-    "repos/${repo}/actions/workflows/${workflow}/runs?branch=main&status=completed&per_page=30" \
-    --jq '[.workflow_runs[] | select((.event == "schedule" or .event == "workflow_dispatch") and .conclusion == "success") | .head_sha][0] // empty'
+  local sha
+  sha="$(nightly_gh_deps api \
+    "repos/${repo}/actions/workflows/${workflow}/runs?event=schedule&branch=main&status=completed&per_page=5" \
+    --jq '[.workflow_runs[] | select(.conclusion == "success") | .head_sha][0] // empty')"
+  if [ -z "$sha" ]; then
+    sha="$(nightly_gh_deps api \
+      "repos/${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&branch=main&status=completed&per_page=5" \
+      --jq '[.workflow_runs[] | select(.conclusion == "success") | .head_sha][0] // empty')"
+  fi
+  printf '%s\n' "$sha"
 }
 
 # The commit a tool's nightly is allowed to build. ecc is gated on its
