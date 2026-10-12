@@ -149,7 +149,6 @@
               grep -q "^$fn() (" ${../../nightly}/scripts/*.sh
               grep -q "^  $fn\$" ${../../nightly}/dispatch.sh
             done
-
             # First-ever nightly on a tag-less repository: the base falls back
             # to 0.1.0 instead of dying silently (nightly_die's exit inside
             # $() defeats a trailing || true; the catch must be if/!).
@@ -175,6 +174,25 @@
               exit 1
               ;;
             esac
+
+            # Bundle assembly: every per-tool tarball lands in its
+            # subdirectory with the top directory stripped (the PDK is
+            # inside the bundle too).
+            tmpd="$(mktemp -d)"
+            mkdir -p "$tmpd/assets" "$tmpd/src/eccroot" "$tmpd/src/sizer-top/bin" "$tmpd/src/kepler-top" "$tmpd/src/icsprout55-pdk-1.0.0/prtech"
+            echo x >"$tmpd/src/eccroot/ecc"
+            echo x >"$tmpd/src/sizer-top/bin/Sizer"
+            echo x >"$tmpd/src/kepler-top/kepler-formal"
+            echo x >"$tmpd/src/icsprout55-pdk-1.0.0/prtech/tech.lef"
+            tar -czf "$tmpd/assets/ecc-cli-linux-x86_64.tar.gz" -C "$tmpd/src/eccroot" .
+            tar -czf "$tmpd/assets/ecc-sizer-1.0.0-nightly.20261012.gabcdef0-linux-x64.tar.gz" -C "$tmpd/src" sizer-top
+            tar -czf "$tmpd/assets/kepler-formal-0.5.0-nightly.20261012.gabcdef0-linux-x86_64.tar.gz" -C "$tmpd/src" kepler-top
+            tar -czf "$tmpd/assets/icsprout55-pdk-1.0.0.tar.gz" -C "$tmpd/src" icsprout55-pdk-1.0.0
+            nightly_assemble_bundle "$tmpd/assets" "$tmpd/out"
+            test -f "$tmpd/out/ecc/ecc"
+            test -f "$tmpd/out/ecc-sizer/bin/Sizer"
+            test -f "$tmpd/out/kepler-formal/kepler-formal"
+            test -f "$tmpd/out/pdk/prtech/tech.lef"
             echo ok > "$out"
           '';
     };
