@@ -107,10 +107,11 @@ EOF
 
   # Release notes: human table plus machine-readable fields (the skip check
   # and tomorrow's carry-forward read the <tool>-commit / <tool>-version /
-  # nightly-recipe-tree lines back).
+  # nightly-recipe-tree lines back). The fields live in an HTML comment so
+  # the rendered page stays clean; the API returns the raw body either way.
   notes="$workdir/notes.md"
   {
-    echo "Nightly build of the ECOS toolchain (ecc, ecc-sizer, kepler-formal, ecos-studio)."
+    echo "Nightly build of the ECOS toolchain (ecc, ecc-sizer, kepler-formal, ecos-studio) and the ICS55 PDK."
     echo
     echo "| tool | version | commit |"
     echo "|---|---|---|"
@@ -133,13 +134,26 @@ EOF
       done
       echo
     fi
-    echo "Unstable nightly prerelease; use the tools' stable releases for production."
+    echo "## Downloads"
     echo
+    # shellcheck disable=SC2016 # literal Markdown text, not a command substitution
+    echo '- `ecos-nightly-linux-x86_64.tar.gz` — the whole toolchain in one bundle (run `ecc/ecc`, `ecc-sizer/bin/Sizer`, `kepler-formal/kepler-formal`; point PDK_ROOT at `pdk/`)'
+    # shellcheck disable=SC2016 # literal Markdown text, not a command substitution
+    echo '- `ECOS-Studio_*.AppImage` — the desktop app'
+    # shellcheck disable=SC2016 # literal Markdown text, not a command substitution
+    echo '- per-tool tarballs plus `.sha256` sidecars for individual or scripted consumption'
+    echo
+    echo "> [!WARNING]"
+    echo "> Unstable nightly prerelease; use the tools' stable releases for production."
+    echo
+    echo "<!-- Machine-readable rebuild metadata, consumed by the nightly pipeline"
+    echo "(skip check and carry-forward). Do not edit."
     for tool in $NIGHTLY_TOOLS; do
       echo "${tool}-commit: ${tool_commit[$tool]}"
       echo "${tool}-version: ${tool_version[$tool]}"
     done
     echo "nightly-recipe-tree: ${recipe_tree}"
+    echo "-->"
   } >"$notes"
 
   self_head="$(git rev-parse HEAD 2>/dev/null || nightly_resolve_head "$NIGHTLY_RELEASE_REPO")"
