@@ -177,7 +177,7 @@
 
             # Bundle assembly: every per-tool tarball lands in its
             # subdirectory with the top directory stripped (the PDK is
-            # inside the bundle too).
+            # inside the bundle too), and the studio AppImage in studio/.
             tmpd="$(mktemp -d)"
             mkdir -p "$tmpd/assets" "$tmpd/src/eccroot" "$tmpd/src/sizer-top/bin" "$tmpd/src/kepler-top" "$tmpd/src/icsprout55-pdk-1.0.0/prtech"
             echo x >"$tmpd/src/eccroot/ecc"
@@ -188,11 +188,13 @@
             tar -czf "$tmpd/assets/ecc-sizer-1.0.0-nightly.20261012.gabcdef0-linux-x64.tar.gz" -C "$tmpd/src" sizer-top
             tar -czf "$tmpd/assets/kepler-formal-0.5.0-nightly.20261012.gabcdef0-linux-x86_64.tar.gz" -C "$tmpd/src" kepler-top
             tar -czf "$tmpd/assets/icsprout55-pdk-1.0.0.tar.gz" -C "$tmpd/src" icsprout55-pdk-1.0.0
+            echo x >"$tmpd/assets/ECOS-Studio_1.0.0-nightly.20261012.gabcdef0_x86_64.AppImage"
             nightly_assemble_bundle "$tmpd/assets" "$tmpd/out"
             test -f "$tmpd/out/ecc/ecc"
             test -f "$tmpd/out/ecc-sizer/bin/Sizer"
             test -f "$tmpd/out/kepler-formal/kepler-formal"
             test -f "$tmpd/out/pdk/prtech/tech.lef"
+            test -x "$tmpd/out/studio/ECOS-Studio_1.0.0-nightly.20261012.gabcdef0_x86_64.AppImage"
             echo ok > "$out"
           '';
     };

@@ -80,16 +80,17 @@ Release: ${tag}
 | ecc-sizer | ${tool_version["ecc-sizer"]} | ${tool_commit["ecc-sizer"]} |
 | kepler-formal | ${tool_version["kepler-formal"]} | ${tool_commit["kepler-formal"]} |
 | pdk (ics55) | ${tool_version["pdk"]} | ${tool_commit["pdk"]} |
+| ecos-studio | ${tool_version["ecos-studio"]} | ${tool_commit["ecos-studio"]} |
 
-ecos-studio ships separately as its AppImage asset on the same release. OSS
-CAD Suite stays out of the nightly channel — install it once with the
+OSS CAD Suite stays out of the nightly channel — install it once with the
 installer
 (\`curl -fsSL https://release.openecos.com/installers/ecc/latest/ecc-installer.sh | sh -s -- --with-toolchain\`).
 
 Layout: \`ecc/\` — ECC CLI (PyInstaller onedir, run \`ecc/ecc\`),
 \`ecc-sizer/\` — portable Sizer runtime (run \`ecc-sizer/bin/Sizer\`),
 \`kepler-formal/\` — Kepler formal verification (run \`kepler-formal/kepler-formal\`),
-\`pdk/\` — the assembled ICS55 PDK (point PDK_ROOT here).
+\`pdk/\` — the assembled ICS55 PDK (point PDK_ROOT here),
+\`studio/\` — the ECOS Studio AppImage (run it after extraction).
 
 Unstable nightly build; use the stable releases of the individual tools for
 production.
@@ -130,11 +131,7 @@ EOF
     echo "## Downloads"
     echo
     # shellcheck disable=SC2016 # literal Markdown text, not a command substitution
-    echo '- `ecos-nightly-linux-x86_64.tar.gz` — the whole toolchain in one bundle (run `ecc/ecc`, `ecc-sizer/bin/Sizer`, `kepler-formal/kepler-formal`; point PDK_ROOT at `pdk/`)'
-    # shellcheck disable=SC2016 # literal Markdown text, not a command substitution
-    echo '- `ECOS-Studio_*.AppImage` — the desktop app'
-    # shellcheck disable=SC2016 # literal Markdown text, not a command substitution
-    echo '- per-tool tarballs plus `.sha256` sidecars for individual or scripted consumption'
+    echo '- `ecos-nightly-linux-x86_64.tar.gz` — the whole toolchain in one bundle: run `ecc/ecc`, `ecc-sizer/bin/Sizer`, `kepler-formal/kepler-formal`, point PDK_ROOT at `pdk/`, and launch `studio/ECOS-Studio_*.AppImage` after extraction'
     echo
     echo "> [!WARNING]"
     echo "> Unstable nightly prerelease; use the tools' stable releases for production."
@@ -152,17 +149,19 @@ EOF
   self_head="$(git rev-parse HEAD 2>/dev/null || nightly_resolve_head "$NIGHTLY_RELEASE_REPO")"
 
   # gh release create uploads the assets; on failure nothing is published
-  # (the release and its tag are created atomically with the upload). The
-  # per-tool <tool>.commit / <tool>.version files are run metadata, not
-  # release assets.
+  # (the release and its tag are created atomically with the upload). Only
+  # the combined bundle is published (plus its sidecar): per-tool tarballs
+  # are the internal interface between the recipes and the bundle assembly,
+  # and unchanged tools are carried forward from the previous bundle's
+  # subtrees instead of re-downloaded per-tool assets. The <tool>.commit /
+  # <tool>.version files are run metadata either way.
   assets=()
-  for f in "$NIGHTLY_ASSETS_DIR"/*; do
-    case "$f" in
-    *.commit | *.version) continue ;;
-    *) assets+=("$f") ;;
-    esac
+  for f in "$NIGHTLY_ASSETS_DIR/ecos-nightly-linux-x86_64.tar.gz" "$NIGHTLY_ASSETS_DIR/ecos-nightly-linux-x86_64.tar.gz.sha256"; do
+    if [ -f "$f" ]; then
+      assets+=("$f")
+    fi
   done
-  [ ${#assets[@]} -ge 1 ] || nightly_die "no assets to publish"
+  [ ${#assets[@]} -eq 2 ] || nightly_die "bundle or its sidecar missing in $NIGHTLY_ASSETS_DIR"
 
   nightly_log "release: creating ${tag} with ${#assets[@]} assets"
   local_rc=0
