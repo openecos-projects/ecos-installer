@@ -65,4 +65,5 @@ nightly_recipe_ecc() (
   cp "$tarball" "$NIGHTLY_ASSETS_DIR/"
   nightly_sha256_sidecar "$NIGHTLY_ASSETS_DIR/ecc-cli-linux-x86_64.tar.gz"
   nightly_record_built "$tool" "$head" "$version"
+  nightly_log "$tool: staged"
 )
