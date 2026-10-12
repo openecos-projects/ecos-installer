@@ -149,6 +149,32 @@
               grep -q "^$fn() (" ${../../nightly}/scripts/*.sh
               grep -q "^  $fn\$" ${../../nightly}/dispatch.sh
             done
+
+            # First-ever nightly on a tag-less repository: the base falls back
+            # to 0.1.0 instead of dying silently (nightly_die's exit inside
+            # $() defeats a trailing || true; the catch must be if/!).
+            stubbin="$(mktemp -d)"
+            # printf instead of a heredoc: nixfmt reindents the string,
+            # which would move a heredoc terminator off column zero.
+            printf '#!${pkgs.bash}/bin/bash\n# Emulates git ls-remote for a repository with no tags at all.\nif [ "$1" = "ls-remote" ]; then exit 0; fi\nexit 1\n' >"$stubbin/git"
+            chmod +x "$stubbin/git"
+            test "$(PATH="$stubbin:$PATH" NIGHTLY_DATE=20261011 NIGHTLY_RELEASE_REPO=x/y nightly_repo_tag)" = "v0.1.0-nightly.20261011"
+
+            # A hard network failure still fails loudly, with the message.
+            # (nightly_die's exit only aborts a $() subshell, so the negative
+            # case must call through one for the if guard to see it.)
+            printf '#!${pkgs.bash}/bin/bash\nexit 1\n' >"$stubbin/git"
+            if got="$(PATH="$stubbin:$PATH" NIGHTLY_DATE=20261011 NIGHTLY_RELEASE_REPO=x/y nightly_repo_tag 2>&1)"; then
+              echo "nightly_repo_tag survived a total ls-remote failure" >&2
+              exit 1
+            fi
+            case "$got" in
+            *"could not query tags"*) ;;
+            *)
+              echo "expected the query-failure message, got: $got" >&2
+              exit 1
+              ;;
+            esac
             echo ok > "$out"
           '';
     };

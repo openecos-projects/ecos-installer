@@ -351,15 +351,20 @@ nightly_semver_compare() {
 nightly_base_version() {
   local repo="$1"
   local tags tag base core pre last bumped
-  if ! tags="$(
-    git ls-remote --tags "https://github.com/${repo}.git" |
+  local raw
+  if ! raw="$(git ls-remote --tags "https://github.com/${repo}.git")"; then
+    nightly_die "could not list tags for ${repo}"
+  fi
+  # Filtering is local and may legitimately yield nothing (a repository with
+  # no tags yet); keep it out of the network guard. The trailing || true
+  # keeps a no-match grep from failing the pipeline under pipefail.
+  tags="$(
+    printf '%s\n' "$raw" |
       sed 's#.*refs/tags/##' |
       grep -v '\^{}$' |
       grep -E "$NIGHTLY_BASE_TAG_RE" |
-      grep -v -- '-nightly'
-  )"; then
-    nightly_die "could not list tags for ${repo}"
-  fi
+      grep -v -- '-nightly' || true
+  )"
   [ -n "$tags" ] || nightly_die "no non-nightly semver tag found on ${repo}"
   tag=""
   local candidate
@@ -516,8 +521,15 @@ nightly_record_built() {
 # recipe change) moves to the next free .N suffix; NIGHTLY_SUFFIX overrides.
 nightly_repo_tag() {
   local base date tag existing max_n
-  base="$(nightly_base_version "$NIGHTLY_RELEASE_REPO" 2>/dev/null || true)"
-  [ -n "$base" ] || base="0.1.0"
+  # NOTE: a `|| true` after a command substitution cannot rescue a helper
+  # that dies with `exit`: the exit terminates the substitution subshell
+  # before the || handler ever runs. Catch the failure with if/! instead.
+  if ! base="$(nightly_base_version "$NIGHTLY_RELEASE_REPO" 2>/dev/null)"; then
+    # No tags on this repository yet (first nightly ever): the series starts
+    # at 0.1.0 until a stable tag exists here.
+    base="0.1.0"
+    nightly_log "no tags on ${NIGHTLY_RELEASE_REPO} yet; using base 0.1.0"
+  fi
   date="${NIGHTLY_DATE:-$(date -u +%Y%m%d)}"
   [[ $date =~ ^[0-9]{8}$ ]] || nightly_die "NIGHTLY_DATE must be YYYYMMDD, got '${date}'"
   tag="v${base}-nightly.${date}"
@@ -527,8 +539,10 @@ nightly_repo_tag() {
     fi
     tag="${tag}.${NIGHTLY_SUFFIX}"
   else
-    existing="$(git ls-remote --tags "https://github.com/${NIGHTLY_RELEASE_REPO}.git" "refs/tags/${tag}" "refs/tags/${tag}.[0-9]*" |
-      sed 's#.*refs/tags/##')"
+    if ! existing="$(git ls-remote --tags "https://github.com/${NIGHTLY_RELEASE_REPO}.git" "refs/tags/${tag}" "refs/tags/${tag}.[0-9]*" |
+      sed 's#.*refs/tags/##')"; then
+      nightly_die "could not query tags on ${NIGHTLY_RELEASE_REPO}"
+    fi
     if printf '%s\n' "$existing" | grep -Fqx "$tag"; then
       max_n="$(printf '%s\n' "$existing" | sed -n "s/^${tag//./\\.}\.\([0-9][0-9]*\)\$/\1/p" | sort -n | tail -n 1)"
       # The plain tag counts as .1, so the next free suffix is max+1.
