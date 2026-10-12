@@ -555,25 +555,61 @@ nightly_repo_tag() {
   printf '%s\n' "$tag"
 }
 
-# Download one tool's assets from an earlier nightly release into
-# $NIGHTLY_ASSETS_DIR (byte-identical carry-forward of an unchanged tool).
+# Carry an unchanged tool forward from the previous nightly's bundle into
+# $NIGHTLY_ASSETS_DIR: the published release only carries the combined
+# bundle, so the tool's subtree is extracted from it and repacked under the
+# recorded version's asset name (byte-identical file content).
 nightly_carry_forward() {
   local tag="$1" tool="$2"
-  local pattern
+  local subdir
   case "$tool" in
-  ecc) pattern='ecc-cli-linux-x86_64.tar.gz*' ;;
-  ecc-sizer) pattern='ecc-sizer-*.tar.gz*' ;;
-  kepler-formal) pattern='kepler-formal-*.tar.gz*' ;;
-  ecos-studio) pattern='ECOS-Studio*.AppImage*' ;;
-  pdk) pattern='icsprout55-pdk-*.tar.gz*' ;;
+  ecc) subdir=ecc ;;
+  ecc-sizer) subdir=ecc-sizer ;;
+  kepler-formal) subdir=kepler-formal ;;
+  ecos-studio) subdir=studio ;;
+  pdk) subdir=pdk ;;
   *) nightly_die "unknown tool: $tool" ;;
   esac
-  nightly_log "carrying forward ${tool} assets from ${tag}"
+  nightly_log "carrying forward ${tool} from ${tag}'s bundle"
+  local work version
+  work="$(mktemp -d)"
   nightly_gh release download "$tag" \
     --repo "$NIGHTLY_RELEASE_REPO" \
-    --pattern "$pattern" \
-    --dir "$NIGHTLY_ASSETS_DIR" \
+    --pattern 'ecos-nightly-linux-x86_64.tar.gz' \
+    --dir "$work" \
     --clobber
+  # Extract only this tool's subtree from the previous bundle.
+  if ! tar -xzf "$work/ecos-nightly-linux-x86_64.tar.gz" -C "$work" \
+    "ecos-nightly-linux-x86_64/${subdir}" 2>/dev/null; then
+    nightly_die "previous bundle ${tag} has no ${subdir}/ subtree; force a full rebuild instead of carrying"
+  fi
+  case "$tool" in
+  ecos-studio)
+    cp "$work/ecos-nightly-linux-x86_64/studio/"*.AppImage "$NIGHTLY_ASSETS_DIR/"
+    ;;
+  ecc)
+    # Static asset name; no version lookup needed.
+    tar -czf "$NIGHTLY_ASSETS_DIR/ecc-cli-linux-x86_64.tar.gz" -C "$work/ecos-nightly-linux-x86_64/ecc" .
+    ;;
+  *)
+    local version
+    version="$(nightly_release_field "$tag" "${tool}-version")"
+    [ -n "$version" ] || nightly_die "no ${tool}-version recorded in ${tag}"
+    tar -czf "$NIGHTLY_ASSETS_DIR/$(nightly_tool_asset_name "$tool" "$version")" \
+      -C "$work/ecos-nightly-linux-x86_64" "$subdir"
+    ;;
+  esac
+  rm -rf "$work"
+}
+
+# The per-tool asset file name for a given recorded version.
+nightly_tool_asset_name() {
+  case "$1" in
+  ecc-sizer) printf 'ecc-sizer-%s-linux-x64.tar.gz\n' "$2" ;;
+  kepler-formal) printf 'kepler-formal-%s-linux-x86_64.tar.gz\n' "$2" ;;
+  pdk) printf 'icsprout55-pdk-%s.tar.gz\n' "$2" ;;
+  *) nightly_die "no versioned asset name for tool: $1" ;;
+  esac
 }
 
 # Run the smoke-test binary <path> with <args...> inside a clean ubuntu:24.04
@@ -589,10 +625,10 @@ nightly_clean_distro_smoke() {
 # Assemble the combined bundle tree from the staged per-tool assets —
 # oss-cad-suite style, one tarball for the whole toolchain: ecc/ holds the
 # PyInstaller onedir contents, ecc-sizer/ and kepler-formal/ the portable
-# runtimes, and pdk/ the assembled ICS55 PDK.
+# runtimes, pdk/ the assembled ICS55 PDK, and studio/ the AppImage.
 nightly_assemble_bundle() {
   local assets="$1" bundle_root="$2"
-  mkdir -p "$bundle_root/ecc" "$bundle_root/ecc-sizer" "$bundle_root/kepler-formal" "$bundle_root/pdk"
+  mkdir -p "$bundle_root/ecc" "$bundle_root/ecc-sizer" "$bundle_root/kepler-formal" "$bundle_root/pdk" "$bundle_root/studio"
   tar -xzf "$assets/ecc-cli-linux-x86_64.tar.gz" -C "$bundle_root/ecc" ||
     nightly_die "bundle: could not unpack the ecc tarball"
   shopt -s nullglob
@@ -609,4 +645,8 @@ nightly_assemble_bundle() {
   [ ${#tarballs[@]} -ge 1 ] || nightly_die "bundle: no ICS55 PDK tarball available"
   tar -xzf "${tarballs[0]}" --strip-components 1 -C "$bundle_root/pdk" ||
     nightly_die "bundle: could not unpack the ICS55 PDK tarball"
+  tarballs=("$assets"/ECOS-Studio_*.AppImage)
+  [ ${#tarballs[@]} -ge 1 ] || nightly_die "bundle: no ecos-studio AppImage available"
+  cp "${tarballs[@]}" "$bundle_root/studio/"
+  chmod +x "$bundle_root"/studio/*.AppImage
 }

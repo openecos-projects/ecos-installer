@@ -14,10 +14,11 @@ nightly_usage() {
 usage: nightly-build <all|ecc|ecc-sizer|kepler-formal|ecos-studio|pdk|release>
 
 Build the given tools and publish one dated nightly prerelease
-(v<base>-nightly.<yyyymmdd>[.N]) on this repository with the per-tool
-tarballs, the assembled ICS55 PDK tarball, the combined ecos-nightly bundle,
-and the ecos-studio AppImage as assets. A tool is skipped when the latest
-nightly already covers it with an unchanged recipe; when nothing moved, no
+(v<base>-nightly.<yyyymmdd>[.N]) on this repository carrying a single
+combined ecos-nightly bundle (per-tool content under ecc/, ecc-sizer/,
+kepler-formal/, pdk/, studio/ subdirectories). A tool is skipped when the
+latest nightly already covers it with an unchanged recipe — its content is
+carried forward from the previous bundle — and when nothing moved, no
 release is created. `release` alone re-runs only the publish stage.
 
 environment:
