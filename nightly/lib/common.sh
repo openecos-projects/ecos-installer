@@ -585,3 +585,28 @@ nightly_clean_distro_smoke() {
   command -v docker >/dev/null 2>&1 || nightly_die "clean-distro smoke test needs docker"
   docker run --rm -v "${root_on_host}:/pkg:ro" ubuntu:24.04 "/pkg/${entrypoint}" "$@"
 }
+
+# Assemble the combined bundle tree from the staged per-tool assets —
+# oss-cad-suite style, one tarball for the whole toolchain: ecc/ holds the
+# PyInstaller onedir contents, ecc-sizer/ and kepler-formal/ the portable
+# runtimes, and pdk/ the assembled ICS55 PDK.
+nightly_assemble_bundle() {
+  local assets="$1" bundle_root="$2"
+  mkdir -p "$bundle_root/ecc" "$bundle_root/ecc-sizer" "$bundle_root/kepler-formal" "$bundle_root/pdk"
+  tar -xzf "$assets/ecc-cli-linux-x86_64.tar.gz" -C "$bundle_root/ecc" ||
+    nightly_die "bundle: could not unpack the ecc tarball"
+  shopt -s nullglob
+  local tarballs
+  tarballs=("$assets"/ecc-sizer-*-linux-x64.tar.gz)
+  [ ${#tarballs[@]} -ge 1 ] || nightly_die "bundle: no ecc-sizer tarball available"
+  tar -xzf "${tarballs[0]}" --strip-components 1 -C "$bundle_root/ecc-sizer" ||
+    nightly_die "bundle: could not unpack the ecc-sizer tarball"
+  tarballs=("$assets"/kepler-formal-*-linux-x86_64.tar.gz)
+  [ ${#tarballs[@]} -ge 1 ] || nightly_die "bundle: no kepler-formal tarball available"
+  tar -xzf "${tarballs[0]}" --strip-components 1 -C "$bundle_root/kepler-formal" ||
+    nightly_die "bundle: could not unpack the kepler-formal tarball"
+  tarballs=("$assets"/icsprout55-pdk-*.tar.gz)
+  [ ${#tarballs[@]} -ge 1 ] || nightly_die "bundle: no ICS55 PDK tarball available"
+  tar -xzf "${tarballs[0]}" --strip-components 1 -C "$bundle_root/pdk" ||
+    nightly_die "bundle: could not unpack the ICS55 PDK tarball"
+}

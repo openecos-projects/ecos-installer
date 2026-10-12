@@ -60,20 +60,12 @@ nightly_recipe_release() (
     nightly_carry_forward "$latest_tag" "$tool"
   done
 
-  # The combined bundle (for humans; the installer/registry keep consuming
-  # the per-tool assets): ecc/ holds the PyInstaller onedir contents,
-  # ecc-sizer/ and kepler-formal/ the portable runtimes.
+  # The combined bundle (oss-cad-suite style, one tarball for the whole
+  # toolchain): ecc/ holds the PyInstaller onedir contents, ecc-sizer/ and
+  # kepler-formal/ the portable runtimes, pdk/ the assembled ICS55 PDK.
   bundle_name="ecos-nightly-linux-x86_64"
   bundle_root="$workdir/$bundle_name"
-  mkdir -p "$bundle_root/ecc" "$bundle_root/ecc-sizer" "$bundle_root/kepler-formal"
-  tar -xzf "$NIGHTLY_ASSETS_DIR/ecc-cli-linux-x86_64.tar.gz" -C "$bundle_root/ecc"
-  shopt -s nullglob
-  sizer_tarballs=("$NIGHTLY_ASSETS_DIR"/ecc-sizer-*-linux-x64.tar.gz)
-  [ ${#sizer_tarballs[@]} -ge 1 ] || nightly_die "no ecc-sizer tarball available for the bundle"
-  tar -xzf "${sizer_tarballs[0]}" --strip-components 1 -C "$bundle_root/ecc-sizer"
-  kepler_tarballs=("$NIGHTLY_ASSETS_DIR"/kepler-formal-*-linux-x86_64.tar.gz)
-  [ ${#kepler_tarballs[@]} -ge 1 ] || nightly_die "no kepler-formal tarball available for the bundle"
-  tar -xzf "${kepler_tarballs[0]}" --strip-components 1 -C "$bundle_root/kepler-formal"
+  nightly_assemble_bundle "$NIGHTLY_ASSETS_DIR" "$bundle_root"
 
   tag="$(nightly_repo_tag)"
   nightly_log "release: assembling bundle and notes for ${tag}"
@@ -87,16 +79,17 @@ Release: ${tag}
 | ecc | ${tool_version[ecc]} | ${tool_commit[ecc]} |
 | ecc-sizer | ${tool_version["ecc-sizer"]} | ${tool_commit["ecc-sizer"]} |
 | kepler-formal | ${tool_version["kepler-formal"]} | ${tool_commit["kepler-formal"]} |
+| pdk (ics55) | ${tool_version["pdk"]} | ${tool_commit["pdk"]} |
 
-ecos-studio ships separately as its AppImage asset on the same release, and
-the assembled ICS55 PDK as icsprout55-pdk-<version>.tar.gz (extract and use
-directly). OSS CAD Suite stays out of the nightly channel — install it once
-with the installer
+ecos-studio ships separately as its AppImage asset on the same release. OSS
+CAD Suite stays out of the nightly channel — install it once with the
+installer
 (\`curl -fsSL https://release.openecos.com/installers/ecc/latest/ecc-installer.sh | sh -s -- --with-toolchain\`).
 
 Layout: \`ecc/\` — ECC CLI (PyInstaller onedir, run \`ecc/ecc\`),
 \`ecc-sizer/\` — portable Sizer runtime (run \`ecc-sizer/bin/Sizer\`),
-\`kepler-formal/\` — Kepler formal verification (run \`kepler-formal/kepler-formal\`).
+\`kepler-formal/\` — Kepler formal verification (run \`kepler-formal/kepler-formal\`),
+\`pdk/\` — the assembled ICS55 PDK (point PDK_ROOT here).
 
 Unstable nightly build; use the stable releases of the individual tools for
 production.
