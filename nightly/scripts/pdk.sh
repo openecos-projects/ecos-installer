@@ -88,4 +88,5 @@ nightly_recipe_pdk() (
   cp "$workdir/$tarball" "$NIGHTLY_ASSETS_DIR/"
   nightly_sha256_sidecar "$NIGHTLY_ASSETS_DIR/$tarball"
   nightly_record_built "$tool" "$commit" "$version"
+  nightly_log "pdk: assembled ${tarball} ($(du -h "$NIGHTLY_ASSETS_DIR/$tarball" | cut -f1))"
 )

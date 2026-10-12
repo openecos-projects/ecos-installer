@@ -32,4 +32,5 @@ nightly_recipe_kepler_formal() (
 
   cp "$workdir/$tarball" "$workdir/${tarball}.sha256" "$NIGHTLY_ASSETS_DIR/"
   nightly_record_built "$tool" "$upstream_commit" "$version"
+  nightly_log "$tool: staged"
 )

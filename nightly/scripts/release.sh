@@ -54,6 +54,8 @@ nightly_recipe_release() (
     exit 0
   fi
 
+  nightly_log "release: fresh=[${fresh_tools[*]}] carry=[${carry_tools[*]}] latest=${latest_tag:-none}"
+
   for tool in "${carry_tools[@]}"; do
     nightly_carry_forward "$latest_tag" "$tool"
   done
@@ -74,6 +76,7 @@ nightly_recipe_release() (
   tar -xzf "${kepler_tarballs[0]}" --strip-components 1 -C "$bundle_root/kepler-formal"
 
   tag="$(nightly_repo_tag)"
+  nightly_log "release: assembling bundle and notes for ${tag}"
   cat >"$bundle_root/README.md" <<EOF
 # ECOS nightly toolchain bundle (Linux x86_64)
 
@@ -154,6 +157,7 @@ EOF
   done
   [ ${#assets[@]} -ge 1 ] || nightly_die "no assets to publish"
 
+  nightly_log "release: creating ${tag} with ${#assets[@]} assets"
   local_rc=0
   nightly_gh release create "$tag" \
     --repo "$NIGHTLY_RELEASE_REPO" \
@@ -163,6 +167,7 @@ EOF
     --notes-file "$notes" \
     "${assets[@]}" || local_rc=$?
   [ "$local_rc" -eq 0 ] || nightly_die "gh release create ${tag} failed (exit ${local_rc})"
+  nightly_log "release: published ${tag}"
 
   # Retention: keep the newest NIGHTLY_KEEP dated nightlies (by tag version,
   # not API creation order).

@@ -55,4 +55,5 @@ nightly_recipe_ecc_sizer() (
   cp "$tarball_ci" "$NIGHTLY_ASSETS_DIR/$archive_name"
   nightly_sha256_sidecar "$NIGHTLY_ASSETS_DIR/$archive_name"
   nightly_record_built "$tool" "$head" "$version"
+  nightly_log "$tool: staged"
 )

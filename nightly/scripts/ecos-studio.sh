@@ -90,4 +90,5 @@ nightly_recipe_ecos_studio() (
     nightly_sha256_sidecar "$NIGHTLY_ASSETS_DIR/$name"
   done
   nightly_record_built "$tool" "$head" "$version"
+  nightly_log "$tool: staged"
 )
