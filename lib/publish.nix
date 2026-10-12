@@ -36,8 +36,14 @@ let
       currentLatest ? null,
       candidate,
     }:
+    let
+      # Parse the candidate first so a malformed version is rejected even on
+      # the no-current branch instead of sailing straight to advance. seq
+      # forces the parse under Nix's laziness.
+      incoming = parse (extractVersion candidate);
+    in
     if currentLatest == null then
-      "advance"
+      builtins.seq incoming "advance"
     else
       let
         currentVersion =
@@ -45,7 +51,6 @@ let
             v = extractVersion currentLatest;
           in
           parse v;
-        incoming = parse (extractVersion candidate);
         cmp = compare incoming currentVersion;
       in
       if cmp < 0 then

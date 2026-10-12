@@ -29,6 +29,12 @@ let
       candidate = text;
     }
   );
+  rejectMalformedCandidate = builtins.tryEval (
+    publish.decide {
+      currentLatest = null;
+      candidate = malformed;
+    }
+  );
 in
 assert
   publish.decide {
@@ -47,6 +53,7 @@ assert
   } == "keep";
 assert !rejectDiff.success;
 assert !rejectMalformed.success;
+assert !rejectMalformedCandidate.success;
 assert publish.versionedKey "v0.1.0-alpha.11" == "installers/ecc/v0.1.0-alpha.11/ecc-installer.sh";
 assert publish.latestKey == "installers/ecc/latest/ecc-installer.sh";
 pkgs.runCommand "ecos-release-publish-check" { } ''
@@ -65,5 +72,10 @@ pkgs.runCommand "ecos-release-publish-check" { } ''
   test "$(${publishDecide}/bin/publish-decide "$work/cur.sh" "$work/cand.sh")" = "advance"
   test "$(${publishDecide}/bin/publish-decide "$work/cand.sh" "$work/cur.sh")" = "keep"
   test "$(${publishDecide}/bin/publish-decide "" "$work/cand.sh")" = "advance"
+  # A malformed candidate is rejected even with no current latest to compare.
+  printf 'garbage\n' >"$work/bad.sh"
+  if ${publishDecide}/bin/publish-decide "" "$work/bad.sh" >/dev/null 2>&1; then
+    exit 1
+  fi
   echo ok > "$out"
 ''
