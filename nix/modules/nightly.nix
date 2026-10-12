@@ -139,6 +139,16 @@
                 v0.1.0-nightly.20261010.2 | nightly_sort_tags_desc
             )"
             test "$sorted" = "$(printf '%s\n' v0.1.0-nightly.20261011 v0.1.0-nightly.20261010.2 v0.1.0-nightly.20261010)"
+
+            # Wiring: every tool in NIGHTLY_TOOLS must have its recipe
+            # function defined in nightly/scripts/ and reachable from the
+            # dispatcher's all path (a missing call publishes a release
+            # without that tool's assets and fails the publish stage).
+            for tool in $NIGHTLY_TOOLS; do
+              fn="nightly_recipe_$(printf '%s' "$tool" | tr '-' '_')"
+              grep -q "^$fn() (" ${../../nightly}/scripts/*.sh
+              grep -q "^  $fn\$" ${../../nightly}/dispatch.sh
+            done
             echo ok > "$out"
           '';
     };
