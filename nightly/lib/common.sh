@@ -49,7 +49,7 @@ NIGHTLY_BASE_TAG_RE='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1
 # Consumed by the recipes and the publish stage (concatenated into the same
 # app; shellcheck sees this file in isolation).
 # shellcheck disable=SC2034
-NIGHTLY_TOOLS="ecc ecc-sizer kepler-formal ecos-studio"
+NIGHTLY_TOOLS="ecc ecc-sizer kepler-formal ecos-studio pdk"
 NIGHTLY_RELEASE_REPO="${NIGHTLY_RELEASE_REPO:-openecos-projects/ecos-installer}"
 
 nightly_log() {
@@ -84,6 +84,7 @@ nightly_tool_repo() {
   ecc-sizer) printf 'openecos-projects/ecc-sizer\n' ;;
   kepler-formal) printf 'openecos-projects/kepler-formal\n' ;;
   ecos-studio) printf 'openecos-projects/ecos-studio\n' ;;
+  pdk) printf 'openecos-projects/icsprout55-pdk\n' ;;
   *) nightly_die "unknown tool: $1" ;;
   esac
 }
@@ -149,10 +150,65 @@ nightly_kepler_upstream() {
   printf '%s %s\n' "$tag" "$commit"
 }
 
+# Print the commit a tag points at (peeled for annotated tags; an exact
+# ref-pattern query alone returns only the tag object line).
+nightly_tag_commit() {
+  local repo="$1" tag="$2"
+  local out plain peeled
+  out="$(git ls-remote --tags "https://github.com/${repo}.git" "refs/tags/${tag}" "refs/tags/${tag}^{}")" ||
+    nightly_die "could not resolve tag ${tag} on ${repo}"
+  peeled="$(printf '%s\n' "$out" | sed -n "s#\\([0-9a-f]\\{40\\}\\)[[:space:]]refs/tags/${tag//./\\.}\\^{}\$#\\1#p")"
+  plain="$(printf '%s\n' "$out" | sed -n "s#\\([0-9a-f]\\{40\\}\\)[[:space:]]refs/tags/${tag//./\\.}\$#\\1#p")"
+  if [ -n "$peeled" ]; then
+    printf '%s\n' "${peeled%%$'\n'*}"
+  else
+    [ -n "$plain" ] || nightly_die "tag ${tag} not found on ${repo}"
+    printf '%s\n' "${plain%%$'\n'*}"
+  fi
+}
+
+# Print "<tag> <target_commitish>" of the newest icsprout55-pdk release that
+# carries the full package set (per $NIGHTLY_PDK_MANIFEST); older tags are
+# tried in order when a newer one is incomplete.
+nightly_pdk_upstream() {
+  local repo expected releases
+  repo="$(nightly_tool_repo pdk)"
+  expected="$(jq -r '.assetNames[]' "$NIGHTLY_PDK_MANIFEST")"
+  releases="$(nightly_gh api "repos/${repo}/releases?per_page=100" --paginate \
+    --jq '.[] | select(.draft == false) | [.tag_name, .target_commitish, ([.assets[].name] | join(" "))] | @tsv')" ||
+    nightly_die "could not list releases on ${repo}"
+  # Candidates newest-version-first: the API order is not version order, and
+  # a page window could otherwise hide the newest complete release.
+  local tags tag line assets missing name commit
+  tags="$(printf '%s\n' "$releases" | cut -f1 | nightly_sort_tags_desc)"
+  while IFS= read -r tag; do
+    [ -n "$tag" ] || continue
+    line="$(printf '%s\n' "$releases" | awk -F'\t' -v t="$tag" '$1 == t')"
+    assets="$(printf '%s' "$line" | cut -f3)"
+    missing=0
+    while read -r name; do
+      [ -n "$name" ] || continue
+      case " $assets " in
+      *" $name "*) ;;
+      *) missing=1 ;;
+      esac
+    done <<<"$expected"
+    if [ "$missing" -eq 0 ]; then
+      # target_commitish is the branch name when the release was published
+      # targeting a branch; resolve the tag to an exact commit instead.
+      commit="$(nightly_tag_commit "$repo" "$tag")"
+      printf '%s %s\n' "$tag" "$commit"
+      return 0
+    fi
+    nightly_log "pdk: release $tag lacks some packages; trying an older one"
+  done <<<"$tags"
+  nightly_die "no complete PDK release found on ${repo}"
+}
+
 # The commit a tool's nightly is allowed to build. ecc is gated on its
 # repository's nightly CI check (ci.yml on a schedule); kepler-formal follows
-# its own repository's latest nightly build; everything else tracks the
-# default-branch HEAD directly.
+# its own repository's latest nightly build; the pdk follows its newest
+# complete release tag; everything else tracks the default-branch HEAD.
 nightly_effective_head() {
   local tool="$1" repo="$2"
   case "$tool" in
@@ -168,6 +224,11 @@ nightly_effective_head() {
   kepler-formal)
     local up
     up="$(nightly_kepler_upstream)"
+    printf '%s\n' "${up#* }"
+    ;;
+  pdk)
+    local up
+    up="$(nightly_pdk_upstream)"
     printf '%s\n' "${up#* }"
     ;;
   *)
@@ -490,6 +551,7 @@ nightly_carry_forward() {
   ecc-sizer) pattern='ecc-sizer-*.tar.gz*' ;;
   kepler-formal) pattern='kepler-formal-*.tar.gz*' ;;
   ecos-studio) pattern='ECOS-Studio*.AppImage*' ;;
+  pdk) pattern='icsprout55-pdk-*.tar.gz*' ;;
   *) nightly_die "unknown tool: $tool" ;;
   esac
   nightly_log "carrying forward ${tool} assets from ${tag}"
