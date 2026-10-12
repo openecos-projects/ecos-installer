@@ -2,6 +2,10 @@
 # Concatenated after nightly/lib/common.sh and the recipe files, so every
 # nightly_* function is already defined.
 set -euo pipefail
+# Propagate errexit into command substitutions (off by default); several
+# helpers run multi-step logic inside $() and must abort on the first
+# failing step instead of continuing with empty values.
+shopt -s inherit_errexit
 # Locale-independent ordering for the SemVer string comparisons.
 export LC_ALL=C
 
@@ -9,21 +13,21 @@ nightly_usage() {
   cat >&2 <<'EOF'
 usage: nightly-build <all|ecc|ecc-sizer|kepler-formal|ecos-studio|release>
 
-Build the given tools from their default-branch HEAD and publish one dated
-nightly prerelease (v<base>-nightly.<yyyymmdd>[.N]) on this repository with
-the per-tool tarballs, the combined ecos-nightly bundle, and the ecos-studio
-AppImage as assets. A tool is skipped when the latest nightly already covers
-its HEAD with an unchanged recipe; when nothing moved, no release is
-created. `release` alone re-runs only the publish stage.
+Build the given tools and publish one dated nightly prerelease
+(v<base>-nightly.<yyyymmdd>[.N]) on this repository with the per-tool
+tarballs, the combined ecos-nightly bundle, and the ecos-studio AppImage as
+assets. A tool is skipped when the latest nightly already covers it with an
+unchanged recipe; when nothing moved, no release is created. `release`
+alone re-runs only the publish stage.
 
 environment:
   GH_TOKEN              required; the workflow's GITHUB_TOKEN (contents:write
                         on this repository)
   NIGHTLY_ASSETS_DIR    required; absolute path of the run's asset staging
                         directory
-  NIGHTLY_READ_TOKEN    required by the ecc recipe; read-only token with
-                        Actions:read on ecc (nightly CI gate) and on
-                        ecc-dreamplace / ecc-tools (CI artifacts)
+  NIGHTLY_READ_TOKEN    required by the ecc and ecc-sizer recipes; read-only
+                        token with Actions:read on ecc (nightly CI gate +
+                        CI artifacts) and ecc-sizer (CI artifacts)
   NIGHTLY_RECIPE_TREE   recipe tree hash for the skip check (default: the
                         caller's HEAD:nightly, else "unknown" = never skip)
   NIGHTLY_FORCE=1       build even when a nightly already covers HEAD

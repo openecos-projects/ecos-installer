@@ -100,23 +100,36 @@ nightly_resolve_head() {
   printf '%s\n' "$sha"
 }
 
+# Print "<run_id> <head_sha>" of the newest successful run of <workflow> on
+# <repo>'s main (optionally filtered to one event type). Empty when none
+# exists. Success is filtered server-side (status=success), so a streak of
+# failures can never push the last green run out of the page window.
+# Needs the deps token (Actions:read).
+nightly_latest_green_run() {
+  local repo="$1" workflow="$2" event="${3:-}"
+  local url="repos/${repo}/actions/workflows/${workflow}/runs?branch=main&status=success&per_page=5"
+  if [ -n "$event" ]; then
+    url="${url}&event=${event}"
+  fi
+  # Build the per-run string list first: first|join over an empty set would
+  # otherwise print " " (a single space), which is not an empty result.
+  nightly_gh_deps api "$url" \
+    --jq '[.workflow_runs[] | [.id, .head_sha] | join(" ")][0] // empty'
+}
+
 # Print the newest commit on <repo>'s main with a successful scheduled run
 # of <workflow> — the "nightly check" gate. A manually dispatched green run
 # is the bootstrap/fallback. Empty when no green run exists yet. The event
-# filter is server-side (per_page=5 is ample for a daily schedule), so no
+# filter is server-side (per_page is ample for a daily schedule), so no
 # pagination is needed. Needs the deps token (Actions:read).
 nightly_checked_head() {
   local repo="$1" workflow="$2"
-  local sha
-  sha="$(nightly_gh_deps api \
-    "repos/${repo}/actions/workflows/${workflow}/runs?event=schedule&branch=main&status=completed&per_page=5" \
-    --jq '[.workflow_runs[] | select(.conclusion == "success") | .head_sha][0] // empty')"
-  if [ -z "$sha" ]; then
-    sha="$(nightly_gh_deps api \
-      "repos/${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&branch=main&status=completed&per_page=5" \
-      --jq '[.workflow_runs[] | select(.conclusion == "success") | .head_sha][0] // empty')"
+  local out
+  out="$(nightly_latest_green_run "$repo" "$workflow" schedule)"
+  if [ -z "$out" ]; then
+    out="$(nightly_latest_green_run "$repo" "$workflow" workflow_dispatch)"
   fi
-  printf '%s\n' "$sha"
+  printf '%s\n' "${out#* }"
 }
 
 # Print "<tag> <target_commitish>" of the newest kepler-formal nightly
@@ -131,7 +144,8 @@ nightly_kepler_upstream() {
     nightly_sort_tags_desc |
     sed -n '1p')"
   [ -n "$tag" ] || nightly_die "no nightly prerelease found on ${repo}"
-  commit="$(nightly_gh_deps api "repos/${repo}/releases/tags/${tag}" --jq '.target_commitish')"
+  commit="$(nightly_gh_deps api "repos/${repo}/releases/tags/${tag}" --jq '.target_commitish')" ||
+    nightly_die "could not read release ${tag} on ${repo}"
   printf '%s %s\n' "$tag" "$commit"
 }
 
@@ -144,6 +158,12 @@ nightly_effective_head() {
   case "$tool" in
   ecc)
     nightly_checked_head "$repo" ci.yml
+    ;;
+  ecc-sizer)
+    # Aggregation follows the newest green CI run on main, not bare HEAD.
+    local run
+    run="$(nightly_latest_green_run "$repo" ci.yml)"
+    printf '%s\n' "${run#* }"
     ;;
   kepler-formal)
     local up
