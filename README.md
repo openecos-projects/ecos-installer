@@ -55,7 +55,7 @@ Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET` plus the bucket
 - `ecos-nightly-linux-x86_64.tar.gz` — the whole toolchain in one bundle: `ecc/` PyInstaller onedir, `ecc-sizer/` and `kepler-formal/` portable runtimes, `pdk/` assembled ICS55 PDK, and `studio/` the AppImage
 - `.sha256` sidecar for it
 
-The PDK recipe reads its package set and validation file list from a projection of `toolchain.toml`, so the assembled layout can never drift from what the installer produces. OSS CAD Suite stays with the installer's `--with-toolchain` path.
+The PDK recipe reads its package set and validation file list from a projection of `toolchain.toml`, so the assembled layout can never drift from what the installer produces. OSS CAD Suite stays with the installer's `--with-toolchain` path. Each bundle also carries an `ecos-manifest.toml` at its root — the machine interface for `ecc-installer.sh --nightly`: the tag, every tool's version and commit, and the PDK validation file list (the same `toolchain.toml` projection), rendered by `nix/modules/nightly.nix` and substituted at publish time.
 
 The release body records each tool's full version (`<toolbase>-nightly.<date>.g<sha>`, with the base being the tool's next planned release; kepler-formal's version comes from its own nightly tag) and source commit, plus compare links against the previous nightly. A tool is rebuilt only when its HEAD moved or the recipe (`nightly/` tree hash, recorded in the body) changed; unchanged tools carry their content forward from the previous nightly's bundle, and when nothing moved at all no release is created.
 
