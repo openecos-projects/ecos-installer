@@ -80,6 +80,7 @@
           sha256 = tool.sha256;
           size = tool.size;
         }
+        // optionalStringField tool.cnbUrl "cnb_url"
         // optionalStringField tool.metadataUrl "metadata_url"
         // optionalStringField tool.stripPrefix "strip_prefix";
 
@@ -116,6 +117,10 @@
               version = lib.removePrefix "v" pdk.version;
               platforms.all-platform = {
                 url = pdk.base.url;
+                # The CNB base archive is a git archive with different bytes
+                # from the GitHub tarball, so it carries its own cnb_sha256.
+                cnb_url = pdk.base.cnbUrl;
+                cnb_sha256 = pdk.base.cnbSha256;
                 sha256 = pdk.base.sha256;
                 size = pdk.base.size;
                 strip_prefix = pdk.base.stripPrefix;
@@ -172,6 +177,7 @@
               version = model.ecc.version;
               platform = "linux-x86_64";
               url = model.ecc.url;
+              cnbUrl = model.ecc.cnbUrl;
               sha256 = model.ecc.sha256;
               size = model.ecc.size;
               metadataUrl = "";
@@ -187,6 +193,7 @@
               version = model.ossCadSuite.version;
               platform = "linux-x86_64";
               url = model.ossCadSuite.url;
+              cnbUrl = model.ossCadSuite.cnbUrl;
               sha256 = model.ossCadSuite.sha256;
               size = model.ossCadSuite.size;
               metadataUrl = "";

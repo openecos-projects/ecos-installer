@@ -279,9 +279,25 @@ let
       builtins.length pdkPlatform.packages == 7
       && builtins.all (pkg: builtins.attrNames pkg == expectedKeys) pdkPlatform.packages
       && pdkPlatform ? url
+      && pdkPlatform ? cnb_url
+      && pdkPlatform ? cnb_sha256
       && pdkPlatform ? sha256
       && pdkPlatform ? size
       && pdkPlatform ? strip_prefix;
+    pdkBaseCnb =
+      pdkPlatform.cnb_url == model.pdk.base.cnbUrl && pdkPlatform.cnb_sha256 == model.pdk.base.cnbSha256;
+    # Only components with a cnb_url_template expose a mirror: ecc, yosys
+    # (oss-cad-suite), and kepler-formal today.
+    toolCnbMirrors =
+      builtins.sort builtins.lessThan (
+        map (t: t.name) (
+          builtins.filter (t: (builtins.head t.versions).platforms.linux-x86_64 ? cnb_url) registry.tools
+        )
+      ) == [
+        "ecc"
+        "kepler-formal"
+        "yosys"
+      ];
     packagesFollowRequires =
       map (pkg: pkg.path) pdkPlatform.packages == map (pkg: pkg.name) model.pdk.assets;
     mpcUpdateSource =
@@ -330,6 +346,9 @@ let
     jq -e '.pdks[0].versions[0].platforms["all-platform"] | (has("post_install") or has("supplemental_assets") | not)' "$json"
     jq -e '(.pdks[0].versions[0].platforms["all-platform"].packages | length) == 7' "$json"
     jq -e 'all(.pdks[0].versions[0].platforms["all-platform"].packages[]; has("path") and has("url") and has("cnb_url") and has("sha256") and has("size") and has("dest"))' "$json"
+    jq -e '.pdks[0].versions[0].platforms["all-platform"] | has("cnb_url") and has("cnb_sha256")' "$json"
+    jq -e '.pdks[0].versions[0].platforms["all-platform"].cnb_sha256 | test("^[0-9a-f]{64}$")' "$json"
+    jq -e '[.tools[] | select(.versions[0].platforms["linux-x86_64"] | has("cnb_url")) | .name] | sort == ["ecc", "kepler-formal", "yosys"]' "$json"
     jq -e '.mpcs[0].versions[0].platforms["all-platform"].update_source == {"type": "github_branch", "branch": "main"}' "$json"
     jq -e '([.tools[] | select(.name == "yosys") | .versions[0].version] | length) == 1' "$json"
     jq -e '([.tools[].name] + [.pdks[].id]) as $ids
