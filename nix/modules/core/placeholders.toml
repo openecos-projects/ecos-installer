@@ -43,3 +43,8 @@ PDK_TECH_LEF = { path = "pdk.techLef" }
 PDK_CELL_LEFS = { path = "pdk.cellLefs", format = "lines" }
 PDK_ASSET_TABLE = { path = "pdk.assets", format = "assetTable" }
 PDK_LIBERTY_FILES = { path = "pdk.libertyFiles", format = "lines" }
+NIGHTLY_API_URL = { path = "nightly.apiUrl" }
+NIGHTLY_GITHUB_URL = { path = "nightly.githubUrl" }
+NIGHTLY_CNB_URL = { path = "nightly.cnbUrl" }
+NIGHTLY_BUNDLE_NAME = { path = "nightly.bundleName" }
+NIGHTLY_TAG_RE = { path = "nightly.tagRe" }

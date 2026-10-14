@@ -152,7 +152,9 @@ toolSections =
   ]
 
 knownSections :: [Text]
-knownSections = ["platform", "ecc", "oss_cad_suite", "sizer", "pdk", "mpc-frame"] ++ toolSections
+-- "nightly" carries no lock data (the installer reads it verbatim); bump
+-- only tolerates it, model.nix validates its fields.
+knownSections = ["platform", "ecc", "oss_cad_suite", "sizer", "pdk", "mpc-frame", "nightly"] ++ toolSections
 
 -- | Decode one component section into an Entry.
 componentEntry :: [Text] -> Text -> Map.Map Text Value -> Decode Entry
