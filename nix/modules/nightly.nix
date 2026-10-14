@@ -42,6 +42,52 @@
         }
       );
 
+      # Bundle manifest template (ecos-manifest.toml) shipped inside the
+      # nightly bundle: the installer's --nightly mode validates the
+      # extracted trees against this file, so the validation data travels
+      # with the artifacts and cannot drift from the nightly assembly the
+      # way the installer's stable pins could. The PDK lists are the same
+      # toolchain.toml projection the pdk recipe consumes; the runtime
+      # values (tag, per-tool version/commit) stay as @NIGHTLY_*@
+      # placeholders for release.sh to substitute. Arrays stay on one line
+      # and placeholders sit inside TOML strings, so the template itself is
+      # valid TOML -- verified by the fromTOML deepSeq below.
+      bundleManifestText =
+        let
+          quote = s: ''"${s}"'';
+          list = xs: "[ ${lib.concatStringsSep ", " (map quote xs)} ]";
+          toolPlaceholder = tool: lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] tool);
+          toolSection = tool: ''
+            [tools.${tool}]
+            version = "@NIGHTLY_${toolPlaceholder tool}_VERSION@"
+            commit = "@NIGHTLY_${toolPlaceholder tool}_COMMIT@"
+          '';
+        in
+        ''
+          # Machine-readable manifest of this ECOS nightly bundle, consumed by
+          # ecc-installer.sh --nightly. Generated at publish time; do not edit.
+          tag = "@NIGHTLY_TAG@"
+        ''
+        + lib.concatMapStringsSep "\n" toolSection [
+          "ecc"
+          "ecc-sizer"
+          "kepler-formal"
+          "ecos-studio"
+          "pdk"
+        ]
+        + ''
+          [pdk]
+          tech_lef = ${quote toolchain.pdk.tech_lef}
+          cell_lefs = ${list toolchain.pdk.cell_lefs}
+          liberty_files = ${list toolchain.pdk.liberty_files}
+        '';
+
+      bundleManifestParsed = builtins.fromTOML bundleManifestText;
+
+      bundleManifestTemplate = pkgs.writeText "ecos-manifest.toml.in" (
+        builtins.deepSeq bundleManifestParsed bundleManifestText
+      );
+
       nightlyBuild = pkgs.writeShellApplication {
         name = "nightly-build";
         runtimeInputs = [
@@ -68,6 +114,9 @@
           # The PDK manifest projected from toolchain.toml (single source of
           # truth for the package set and validation paths).
           NIGHTLY_PDK_MANIFEST=${pdkManifest}
+          # The bundle manifest template; release.sh substitutes the
+          # @NIGHTLY_*@ placeholders and ships it as ecos-manifest.toml.
+          NIGHTLY_BUNDLE_MANIFEST_TEMPLATE=${bundleManifestTemplate}
           ${builtins.readFile ../../nightly/scripts/ecc.sh}
           ${builtins.readFile ../../nightly/scripts/ecc-sizer.sh}
           ${builtins.readFile ../../nightly/scripts/kepler-formal.sh}
@@ -195,6 +244,30 @@
             test -f "$tmpd/out/kepler-formal/kepler-formal"
             test -f "$tmpd/out/pdk/prtech/tech.lef"
             test -x "$tmpd/out/studio/ECOS-Studio_1.0.0-nightly.20261012.gabcdef0_x86_64.AppImage"
+
+            # Bundle manifest: fixture substitution fills every @NIGHTLY_*@
+            # placeholder and the PDK lists come through from toolchain.toml.
+            export NIGHTLY_BUNDLE_MANIFEST_TEMPLATE=${bundleManifestTemplate}
+            declare -A tool_version=() tool_commit=()
+            for tool in $NIGHTLY_TOOLS; do
+              tool_version[$tool]="1.0.0-nightly.20261012.gabcdef0"
+              tool_commit[$tool]="0123456789abcdef0123456789abcdef01234567"
+            done
+            nightly_write_bundle_manifest "$tmpd/out" "v0.1.0-nightly.20261012"
+            m="$tmpd/out/ecos-manifest.toml"
+            test -f "$m"
+            grep -q '^tag = "v0.1.0-nightly.20261012"$' "$m"
+            grep -q '^version = "1.0.0-nightly.20261012.gabcdef0"$' "$m"
+            ! grep -q '@NIGHTLY_' "$m"
+            grep -q '^cell_lefs = \[ "' "$m"
+            # Unsafe values are rejected instead of breaking the TOML quoting.
+            # nightly_die exits, so the negative case runs in a subshell.
+            mkdir -p "$tmpd/out2"
+            tool_commit[ecc]='bad"value'
+            if ( nightly_write_bundle_manifest "$tmpd/out2" "v0.1.0-nightly.20261013" ) 2>/dev/null; then
+              echo "nightly_write_bundle_manifest accepted a quote in a value" >&2
+              exit 1
+            fi
             echo ok > "$out"
           '';
     };

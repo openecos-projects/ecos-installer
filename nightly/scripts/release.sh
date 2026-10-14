@@ -69,6 +69,9 @@ nightly_recipe_release() (
 
   tag="$(nightly_repo_tag)"
   nightly_log "release: assembling bundle and notes for ${tag}"
+  # The manifest the installer validates against; written after the tag is
+  # known, before the bundle is tarred.
+  nightly_write_bundle_manifest "$bundle_root" "$tag"
   cat >"$bundle_root/README.md" <<EOF
 # ECOS nightly toolchain bundle (Linux x86_64)
 
