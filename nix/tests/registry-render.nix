@@ -298,6 +298,35 @@ let
         "kepler-formal"
         "yosys"
       ];
+    # The emitted mirror URLs resolve exactly from the locked model.
+    toolCnbUrlsMatchModel =
+      let
+        byName = builtins.listToAttrs (map (t: lib.nameValuePair t.name t) registry.tools);
+        entry = n: (builtins.head byName.${n}.versions).platforms.linux-x86_64;
+      in
+      (entry "ecc").cnb_url == model.ecc.cnbUrl
+      && (entry "yosys").cnb_url == model.ossCadSuite.cnbUrl
+      && (entry "kepler-formal").cnb_url == model.toolsByName."kepler-formal".cnbUrl;
+    # Mirrors stay opt-in everywhere else: the MPC entry never carries
+    # cnb_url, cnb_sha256 appears only on the PDK base (its mirror bytes
+    # differ), and non-mirrored tools omit cnb_url entirely.
+    cnbFieldsAbsentWhereUnexpected =
+      !(mpcVersion.platforms.all-platform ? cnb_url)
+      && !(mpcVersion.platforms.all-platform ? cnb_sha256)
+      && builtins.all (
+        t: !((builtins.head t.versions).platforms.linux-x86_64 ? cnb_sha256)
+      ) registry.tools
+      && builtins.all (pkg: !(pkg ? cnb_sha256)) pdkPlatform.packages
+      && builtins.all (t: !((builtins.head t.versions).platforms.linux-x86_64 ? cnb_url)) (
+        builtins.filter (
+          t:
+          !(builtins.elem t.name [
+            "ecc"
+            "kepler-formal"
+            "yosys"
+          ])
+        ) registry.tools
+      );
     packagesFollowRequires =
       map (pkg: pkg.path) pdkPlatform.packages == map (pkg: pkg.name) model.pdk.assets;
     mpcUpdateSource =
@@ -349,6 +378,10 @@ let
     jq -e '.pdks[0].versions[0].platforms["all-platform"] | has("cnb_url") and has("cnb_sha256")' "$json"
     jq -e '.pdks[0].versions[0].platforms["all-platform"].cnb_sha256 | test("^[0-9a-f]{64}$")' "$json"
     jq -e '[.tools[] | select(.versions[0].platforms["linux-x86_64"] | has("cnb_url")) | .name] | sort == ["ecc", "kepler-formal", "yosys"]' "$json"
+    jq -e 'all(.tools[] | select(.versions[0].platforms["linux-x86_64"] | has("cnb_url")) | .versions[0].platforms["linux-x86_64"].cnb_url; startswith("https://cnb.cool/"))' "$json"
+    jq -e '[.tools[] | .versions[0].platforms["linux-x86_64"] | select(has("cnb_sha256"))] | length == 0' "$json"
+    jq -e 'all(.pdks[0].versions[0].platforms["all-platform"].packages[]; has("cnb_sha256") | not)' "$json"
+    jq -e '.mpcs[0].versions[0].platforms["all-platform"] | (has("cnb_url") or has("cnb_sha256")) | not' "$json"
     jq -e '.mpcs[0].versions[0].platforms["all-platform"].update_source == {"type": "github_branch", "branch": "main"}' "$json"
     jq -e '([.tools[] | select(.name == "yosys") | .versions[0].version] | length) == 1' "$json"
     jq -e '([.tools[].name] + [.pdks[].id]) as $ids
