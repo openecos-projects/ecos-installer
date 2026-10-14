@@ -32,6 +32,9 @@ min_glibc = "2.34"
 repo = "openecos-projects/ecos-installer"
 cnb_repo = "ecoslab/ecos-installer"
 bundle_name = "ecos-nightly-linux-x86_64"
+# The CLI variant (no Studio AppImage); the installer's --nightly downloads
+# this one.
+cli_bundle_name = "ecc-cli-nightly-linux-x86_64"
 # TOML literal string: backslashes stay verbatim for grep -E / builtins.match.
 tag_re = 'v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}(\.[1-9][0-9]*)?'
 

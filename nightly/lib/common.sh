@@ -544,6 +544,31 @@ nightly_write_bundle_manifest() {
   fi
 }
 
+# Create the CLI variant of the bundle next to the full one: hardlink-copy
+# (same filesystem, no data duplication), drop the Studio AppImage, and
+# replace the README. The ecos-manifest.toml is shared unchanged.
+nightly_pack_cli_bundle() {
+  local bundle_root="$1" cli_root="$2" tag="$3"
+  cp -al "$bundle_root" "$cli_root" || nightly_die "could not hardlink-copy the bundle"
+  rm -rf "$cli_root/studio"
+  # The hardlinked files share inodes with the full bundle: rewrite the
+  # README through a fresh inode instead of truncating in place.
+  rm -f "$cli_root/README.md"
+  cat >"$cli_root/README.md" <<EOF
+# ECOS nightly toolchain bundle, CLI edition (Linux x86_64)
+
+Release: ${tag}
+
+Same as ecos-nightly-linux-x86_64 minus the ECOS Studio AppImage. This is
+what \`ecc-installer.sh --nightly\` downloads and validates (see
+ecos-manifest.toml). Layout: \`ecc/\`, \`ecc-sizer/\`, \`kepler-formal/\`,
+\`pdk/\`.
+
+Unstable nightly build; use the stable releases of the individual tools for
+production.
+EOF
+}
+
 # Record a built tool's provenance for the publish stage and the next run's
 # skip check.
 nightly_record_built() {

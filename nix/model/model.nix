@@ -215,6 +215,7 @@ let
     "repo"
     "cnb_repo"
     "bundle_name"
+    "cli_bundle_name"
     "tag_re"
   ];
 
@@ -228,6 +229,14 @@ let
       cnbRepo = requireNonEmpty "nightly.cnb_repo" (section.cnb_repo or "");
       repoShape = value: builtins.match "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+" value != null;
       tagRe = requireNonEmpty "nightly.tag_re" (section.tag_re or "");
+      # Bundle names land in the installer template, download URLs, and
+      # release asset paths; keep them to a safe basename character set.
+      safeBundleName =
+        label: name:
+        if builtins.match "[A-Za-z0-9._-]+" name == null then
+          throwUn "nightly.${label} must be a plain basename (letters, digits, . _ -): ${name}"
+        else
+          name;
     in
     if !repoShape repo then
       throwUn "nightly.repo must look like owner/repo: ${repo}"
@@ -246,7 +255,12 @@ let
     else
       {
         inherit repo cnbRepo tagRe;
-        bundleName = requireNonEmpty "nightly.bundle_name" (section.bundle_name or "");
+        bundleName = safeBundleName "bundle_name" (
+          requireNonEmpty "nightly.bundle_name" (section.bundle_name or "")
+        );
+        cliBundleName = safeBundleName "cli_bundle_name" (
+          requireNonEmpty "nightly.cli_bundle_name" (section.cli_bundle_name or "")
+        );
         apiUrl = "https://api.github.com/repos/${repo}/releases";
         githubUrl = "https://github.com/${repo}/releases/download";
         cnbUrl = "https://cnb.cool/${cnbRepo}/-/releases/download";
@@ -720,6 +734,8 @@ else if !(builtins.all (n: builtins.any (a: a.name == n) model.pdk.assets) liber
   throwUn "missing Liberty archive"
 else if builtins.length model.pdk.cellLefs < 2 then
   throwUn "PDK standard-cell LEF list is incomplete"
+else if model.nightly.bundleName == model.nightly.cliBundleName then
+  throwUn "nightly bundle_name and cli_bundle_name must differ"
 else
   # Force the SemVer parses and the whole model so a malformed manifest
   # fails at nix build / flake check time instead of reaching a projection.

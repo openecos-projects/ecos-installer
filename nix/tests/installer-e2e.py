@@ -113,7 +113,7 @@ PLACEHOLDERS = (
     "NIGHTLY_TAG_RE",
 )
 
-NIGHTLY_BUNDLE = "ecos-nightly-linux-x86_64"
+NIGHTLY_BUNDLE = "ecc-cli-nightly-linux-x86_64"
 # Mirrors NIGHTLY_TAG_BODY_RE in nightly/lib/common.sh.
 NIGHTLY_TAG_RE = r"v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}(\.[1-9][0-9]*)?"
 NIGHTLY_COMMIT = "0123456789abcdef0123456789abcdef01234567"

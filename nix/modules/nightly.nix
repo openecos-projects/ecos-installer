@@ -137,6 +137,9 @@
           # The bundle manifest template; release.sh substitutes the
           # @NIGHTLY_*@ placeholders and ships it as ecos-manifest.toml.
           NIGHTLY_BUNDLE_MANIFEST_TEMPLATE=${bundleManifestTemplate}
+          # The CLI bundle (no Studio AppImage) published alongside the full
+          # one; release.sh tars it under this name.
+          NIGHTLY_CLI_BUNDLE_NAME=${lib.escapeShellArg nightlyModel.cliBundleName}
           ${builtins.readFile ../../nightly/scripts/ecc.sh}
           ${builtins.readFile ../../nightly/scripts/ecc-sizer.sh}
           ${builtins.readFile ../../nightly/scripts/kepler-formal.sh}
@@ -303,6 +306,21 @@
               echo "nightly_write_bundle_manifest accepted a backslash in a value" >&2
               exit 1
             fi
+
+            # The CLI bundle drops studio/ and keeps everything else,
+            # including the manifest.
+            echo "full bundle readme" >"$tmpd/out/README.md"
+            nightly_pack_cli_bundle "$tmpd/out" "$tmpd/cli" "v0.1.0-nightly.20261012"
+            test -f "$tmpd/cli/ecc/ecc"
+            test -f "$tmpd/cli/ecos-manifest.toml"
+            test ! -e "$tmpd/cli/studio"
+            grep -q "CLI edition" "$tmpd/cli/README.md"
+            # The hardlink copy shares inodes: rewriting the CLI README must
+            # not truncate the full bundle's README in place.
+            test "$(cat "$tmpd/out/README.md")" = "full bundle readme"
+            test "$tmpd/cli/ecos-manifest.toml" -ef "$tmpd/out/ecos-manifest.toml"
+            # The full bundle keeps its studio/.
+            test -d "$tmpd/out/studio"
             echo ok > "$out"
           '';
     };

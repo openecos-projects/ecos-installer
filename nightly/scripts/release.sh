@@ -102,6 +102,14 @@ EOF
   cp "$workdir/${bundle_name}.tar.gz" "$NIGHTLY_ASSETS_DIR/"
   nightly_sha256_sidecar "$NIGHTLY_ASSETS_DIR/${bundle_name}.tar.gz"
 
+  # The CLI bundle drops studio/: the installer (--nightly) never installs
+  # the AppImage, so it should not have to download it either.
+  cli_name="${NIGHTLY_CLI_BUNDLE_NAME:?injected from toolchain.toml by the nix wrapper}"
+  nightly_pack_cli_bundle "$bundle_root" "$workdir/$cli_name" "$tag"
+  tar -czf "$workdir/${cli_name}.tar.gz" -C "$workdir" "$cli_name"
+  cp "$workdir/${cli_name}.tar.gz" "$NIGHTLY_ASSETS_DIR/"
+  nightly_sha256_sidecar "$NIGHTLY_ASSETS_DIR/${cli_name}.tar.gz"
+
   # Release notes: human table plus machine-readable fields (the skip check
   # and tomorrow's carry-forward read the <tool>-commit / <tool>-version /
   # nightly-recipe-tree lines back). The fields live in an HTML comment so
@@ -134,7 +142,9 @@ EOF
     echo "## Downloads"
     echo
     # shellcheck disable=SC2016 # literal Markdown text, not a command substitution
-    echo '- `ecos-nightly-linux-x86_64.tar.gz` — the whole toolchain in one bundle: run `ecc/ecc`, `ecc-sizer/bin/Sizer`, `kepler-formal/kepler-formal`, point PDK_ROOT at `pdk/`, and launch `studio/ECOS-Studio_*.AppImage` after extraction'
+    echo '- `ecc-cli-nightly-linux-x86_64.tar.gz` — the CLI toolchain bundle (no Studio AppImage); this is what `ecc-installer.sh --nightly` downloads'
+    # shellcheck disable=SC2016 # literal Markdown text, not a command substitution
+    echo '- `ecos-nightly-linux-x86_64.tar.gz` — the whole toolchain plus the Studio AppImage in one bundle: run `ecc/ecc`, `ecc-sizer/bin/Sizer`, `kepler-formal/kepler-formal`, point PDK_ROOT at `pdk/`, and launch `studio/ECOS-Studio_*.AppImage` after extraction'
     echo
     echo "> [!WARNING]"
     echo "> Unstable nightly prerelease; use the tools' stable releases for production."
@@ -153,18 +163,22 @@ EOF
 
   # gh release create uploads the assets; on failure nothing is published
   # (the release and its tag are created atomically with the upload). Only
-  # the combined bundle is published (plus its sidecar): per-tool tarballs
+  # the two combined bundles are published (plus sidecars): per-tool tarballs
   # are the internal interface between the recipes and the bundle assembly,
   # and unchanged tools are carried forward from the previous bundle's
   # subtrees instead of re-downloaded per-tool assets. The <tool>.commit /
   # <tool>.version files are run metadata either way.
   assets=()
-  for f in "$NIGHTLY_ASSETS_DIR/ecos-nightly-linux-x86_64.tar.gz" "$NIGHTLY_ASSETS_DIR/ecos-nightly-linux-x86_64.tar.gz.sha256"; do
+  for f in \
+    "$NIGHTLY_ASSETS_DIR/ecos-nightly-linux-x86_64.tar.gz" \
+    "$NIGHTLY_ASSETS_DIR/ecos-nightly-linux-x86_64.tar.gz.sha256" \
+    "$NIGHTLY_ASSETS_DIR/${cli_name}.tar.gz" \
+    "$NIGHTLY_ASSETS_DIR/${cli_name}.tar.gz.sha256"; do
     if [ -f "$f" ]; then
       assets+=("$f")
     fi
   done
-  [ ${#assets[@]} -eq 2 ] || nightly_die "bundle or its sidecar missing in $NIGHTLY_ASSETS_DIR"
+  [ ${#assets[@]} -eq 4 ] || nightly_die "bundles or their sidecars missing in $NIGHTLY_ASSETS_DIR"
 
   nightly_log "release: creating ${tag} with ${#assets[@]} assets"
   local_rc=0
