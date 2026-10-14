@@ -73,6 +73,7 @@ let
   sizer = requireSection "sizer";
   pdkRaw = requireSection "pdk";
   mpcRaw = requireSection "mpc-frame";
+  nightlyRaw = requireSection "nightly";
 
   pdkPkgsRaw =
     let
@@ -209,6 +210,61 @@ let
     "strip_prefix"
     "update_source"
   ];
+
+  nightlyFields = [
+    "repo"
+    "cnb_repo"
+    "bundle_name"
+    "cli_bundle_name"
+    "tag_re"
+  ];
+
+  # The nightly channel published on this repository (see nightly/). Not a
+  # locked component: no src, no sha256 — the installer resolves tags and
+  # verifies the bundle's sidecar checksum at install time.
+  nightlyModel =
+    let
+      section = checkFields "nightly" nightlyFields nightlyRaw;
+      repo = requireNonEmpty "nightly.repo" (section.repo or "");
+      cnbRepo = requireNonEmpty "nightly.cnb_repo" (section.cnb_repo or "");
+      repoShape = value: builtins.match "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+" value != null;
+      tagRe = requireNonEmpty "nightly.tag_re" (section.tag_re or "");
+      # Bundle names land in the installer template, download URLs, and
+      # release asset paths; keep them to a safe basename character set.
+      safeBundleName =
+        label: name:
+        if builtins.match "[A-Za-z0-9._-]+" name == null then
+          throwUn "nightly.${label} must be a plain basename (letters, digits, . _ -): ${name}"
+        else
+          name;
+    in
+    if !repoShape repo then
+      throwUn "nightly.repo must look like owner/repo: ${repo}"
+    else if !repoShape cnbRepo then
+      throwUn "nightly.cnb_repo must look like owner/repo: ${cnbRepo}"
+    # Self-check the tag regex against the shapes the publish side produces
+    # (builtins.match is POSIX ERE, same as the installer's grep -E and the
+    # pipeline's grep). This is the single source of truth: the pipeline gets
+    # tag_re injected and the installer as a placeholder.
+    else if builtins.match tagRe "v0.1.0-nightly.20261010" == null then
+      throwUn "nightly.tag_re does not match a plain dated nightly tag"
+    else if builtins.match tagRe "v0.1.0-nightly.20261010.2" == null then
+      throwUn "nightly.tag_re does not match a same-day rerun tag"
+    else if builtins.match tagRe "v0.1.0" != null then
+      throwUn "nightly.tag_re must not match a stable tag"
+    else
+      {
+        inherit repo cnbRepo tagRe;
+        bundleName = safeBundleName "bundle_name" (
+          requireNonEmpty "nightly.bundle_name" (section.bundle_name or "")
+        );
+        cliBundleName = safeBundleName "cli_bundle_name" (
+          requireNonEmpty "nightly.cli_bundle_name" (section.cli_bundle_name or "")
+        );
+        apiUrl = "https://api.github.com/repos/${repo}/releases";
+        githubUrl = "https://github.com/${repo}/releases/download";
+        cnbUrl = "https://cnb.cool/${cnbRepo}/-/releases/download";
+      };
 
   sizerCheck = checkFields "sizer" sizerFields sizer;
 
@@ -623,6 +679,7 @@ let
     ossCadSuite = ossModel;
     sizer = sizerModel;
     pdk = pdkModel;
+    nightly = nightlyModel;
     tools = tools;
     # Name-addressed view of the tools list so installer placeholders
     # (nix/modules/core/placeholders.toml) can reference one tool by a
@@ -677,6 +734,8 @@ else if !(builtins.all (n: builtins.any (a: a.name == n) model.pdk.assets) liber
   throwUn "missing Liberty archive"
 else if builtins.length model.pdk.cellLefs < 2 then
   throwUn "PDK standard-cell LEF list is incomplete"
+else if model.nightly.bundleName == model.nightly.cliBundleName then
+  throwUn "nightly bundle_name and cli_bundle_name must differ"
 else
   # Force the SemVer parses and the whole model so a malformed manifest
   # fails at nix build / flake check time instead of reaching a projection.

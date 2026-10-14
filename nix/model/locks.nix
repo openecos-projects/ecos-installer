@@ -321,6 +321,8 @@ let
     "sizer"
     "pdk"
     "mpc-frame"
+    # Not a locked component; passed through to the model verbatim.
+    "nightly"
   ]
   ++ toolSections;
 
@@ -344,6 +346,7 @@ builtins.deepSeq [ topCheck closureCheck pdkVersion ] (
     pdk = pdkSection;
     pdk_pkg = pkgSections;
     mpc-frame = mpcSection;
+    nightly = rules.nightly;
   }
   // builtins.listToAttrs (
     map (key: {

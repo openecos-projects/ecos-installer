@@ -23,6 +23,21 @@ os = "linux"
 cpu = "x86_64"
 min_glibc = "2.34"
 
+# The nightly channel published by nightly.yml: where the dated prereleases
+# live and what the single bundle asset is called. tag_re is the single
+# source of truth for the nightly tag shape: the pipeline gets it injected as
+# NIGHTLY_TAG_BODY_RE and the installer as the NIGHTLY_TAG_RE placeholder.
+# bump never touches this section.
+[nightly]
+repo = "openecos-projects/ecos-installer"
+cnb_repo = "ecoslab/ecos-installer"
+bundle_name = "ecos-nightly-linux-x86_64"
+# The CLI variant (no Studio AppImage); the installer's --nightly downloads
+# this one.
+cli_bundle_name = "ecc-cli-nightly-linux-x86_64"
+# TOML literal string: backslashes stay verbatim for grep -E / builtins.match.
+tag_re = 'v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}(\.[1-9][0-9]*)?'
+
 [ecc]
 # registry metadata
 name = "ecc"

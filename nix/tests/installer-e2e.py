@@ -106,7 +106,22 @@ PLACEHOLDERS = (
     "PDK_CELL_LEFS",
     "PDK_ASSET_TABLE",
     "PDK_LIBERTY_FILES",
+    "NIGHTLY_API_URL",
+    "NIGHTLY_GITHUB_URL",
+    "NIGHTLY_CNB_URL",
+    "NIGHTLY_BUNDLE_NAME",
+    "NIGHTLY_TAG_RE",
 )
+
+NIGHTLY_BUNDLE = "ecc-cli-nightly-linux-x86_64"
+# Mirrors NIGHTLY_TAG_BODY_RE in nightly/lib/common.sh.
+NIGHTLY_TAG_RE = r"v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}(\.[1-9][0-9]*)?"
+NIGHTLY_COMMIT = "0123456789abcdef0123456789abcdef01234567"
+NIGHTLY_ECC_VERSION = "0.1.0-alpha.12-nightly.20261013.g0123456"
+NIGHTLY_SIZER_VERSION = "0.1.0-nightly.20261013.g0123456"
+NIGHTLY_KEPLER_VERSION = "0.5.0-nightly.20261013"
+NIGHTLY_PDK_VERSION = "v1.10.103"
+NIGHTLY_STUDIO_VERSION = "1.0.0-nightly.20261013.g0123456"
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -386,6 +401,89 @@ def liberty_paths() -> tuple[str, ...]:
     return tuple(f"{dest}/liberty/{filename}" for _, dest, filename in LIBERTY_SPECS)
 
 
+def nightly_manifest(
+    tag: str,
+    *,
+    cell_lefs: tuple[str, ...] = CELL_LEFS,
+    liberty: tuple[str, ...] = (),
+    tech_lef: str = TECH_LEF,
+) -> bytes:
+    # Strict-subset TOML, same shape as nix/modules/nightly.nix renders.
+    libs = liberty or liberty_paths()
+    quoted = ", ".join(f'"{p}"' for p in cell_lefs)
+    quoted_libs = ", ".join(f'"{p}"' for p in libs)
+    return f"""# test fixture
+tag = "{tag}"
+[tools.ecc]
+version = "{NIGHTLY_ECC_VERSION}"
+commit = "{NIGHTLY_COMMIT}"
+
+[tools.ecc-sizer]
+version = "{NIGHTLY_SIZER_VERSION}"
+commit = "{NIGHTLY_COMMIT}"
+
+[tools.kepler-formal]
+version = "{NIGHTLY_KEPLER_VERSION}"
+commit = "{NIGHTLY_COMMIT}"
+
+[tools.ecos-studio]
+version = "{NIGHTLY_STUDIO_VERSION}"
+commit = "{NIGHTLY_COMMIT}"
+
+[tools.pdk]
+version = "{NIGHTLY_PDK_VERSION}"
+commit = "{NIGHTLY_COMMIT}"
+
+[pdk]
+tech_lef = "{tech_lef}"
+cell_lefs = [ {quoted} ]
+liberty_files = [ {quoted_libs} ]
+""".encode()
+
+
+def build_nightly_bundle(
+    tag: str,
+    *,
+    manifest: bytes | None = None,
+    drop_pdk_files: bool = False,
+    extra_members: dict[str, bytes] | None = None,
+) -> bytes:
+    # The assembled bundle layout: ecc/ onedir, ecc-sizer/ and kepler-formal/
+    # portable runtimes, pdk/ fully assembled (no supplementals), studio/.
+    members: dict[str, bytes | None] = {
+        f"{NIGHTLY_BUNDLE}/ecc/ecc": ecc_script(NIGHTLY_ECC_VERSION),
+        f"{NIGHTLY_BUNDLE}/ecc/_internal/torch/bin/torch_shm_manager": b"shm\n",
+        f"{NIGHTLY_BUNDLE}/ecc-sizer/bin/Sizer": sizer_script(NIGHTLY_SIZER_VERSION),
+        f"{NIGHTLY_BUNDLE}/ecc-sizer/libexec/Sizer": b"ELF-sizer-payload\n",
+        f"{NIGHTLY_BUNDLE}/ecc-sizer/lib/ld-linux-x86-64.so.2": b"ELF-loader\n",
+        f"{NIGHTLY_BUNDLE}/ecc-sizer/src/sizer_os.tcl": b"# sizer os sentinel\n",
+        f"{NIGHTLY_BUNDLE}/kepler-formal/kepler-formal": b"#!/bin/sh\nexit 0\n",
+        f"{NIGHTLY_BUNDLE}/kepler-formal/bin/kepler-formal": b"#!/bin/sh\nexit 0\n",
+        f"{NIGHTLY_BUNDLE}/kepler-formal/lib/libnaja_runtime.so": b"ELF-kepler-payload\n",
+        f"{NIGHTLY_BUNDLE}/studio/ECOS-Studio_test_x86_64.AppImage": b"appimage\n",
+    }
+    if not drop_pdk_files:
+        members[f"{NIGHTLY_BUNDLE}/pdk/{TECH_LEF}"] = b"VERSION 5.8 ;\n"
+        for path in CELL_LEFS:
+            members[f"{NIGHTLY_BUNDLE}/pdk/{path}"] = b"MACRO TEST ;\nEND TEST\n"
+        for path in liberty_paths():
+            members[f"{NIGHTLY_BUNDLE}/pdk/{path}"] = b"library (t) {}\n"
+    for name, content in (extra_members or {}).items():
+        members[f"{NIGHTLY_BUNDLE}/{name}"] = content
+    if manifest is not None:
+        members[f"{NIGHTLY_BUNDLE}/ecos-manifest.toml"] = manifest
+    return pack_tar(members, compression="gz")
+
+
+def sidecar(data: bytes) -> bytes:
+    return f"{sha256_bytes(data)}  {NIGHTLY_BUNDLE}.tar.gz\n".encode()
+
+
+def releases_json(tags: list[str]) -> bytes:
+    entries = ", ".join(f'{{"tag_name": "{t}", "prerelease": true}}' for t in tags)
+    return f"[{entries}]".encode()
+
+
 class AssetServer(ThreadingHTTPServer):
     def __init__(self, routes: dict[str, dict[str, Any]]) -> None:
         super().__init__(("127.0.0.1", 0), _AssetHandler)
@@ -509,6 +607,11 @@ def render_installer(
         "PDK_CELL_LEFS": "\n".join(CELL_LEFS),
         "PDK_ASSET_TABLE": "\n".join(rows),
         "PDK_LIBERTY_FILES": "\n".join(liberty_paths()),
+        "NIGHTLY_API_URL": f"{base}/nightly-api",
+        "NIGHTLY_GITHUB_URL": f"{base}/github-nightly",
+        "NIGHTLY_CNB_URL": f"{base}/cnb-nightly",
+        "NIGHTLY_BUNDLE_NAME": NIGHTLY_BUNDLE,
+        "NIGHTLY_TAG_RE": NIGHTLY_TAG_RE,
     }
     rendered = template
     for key in PLACEHOLDERS:
@@ -647,6 +750,32 @@ class Harness:
             ecc_cnb=ecc_cnb,
         )
         return write_installer(text, dest)
+
+    def add_nightly(
+        self,
+        tag: str,
+        *,
+        bundle: bytes | None = None,
+        bundle_data: bytes | None = None,
+        sidecar_data: bytes | None = None,
+        cnb: bool = True,
+    ) -> None:
+        """Register a nightly release's bundle + sidecar on both sources."""
+        if bundle is None and bundle_data is None:
+            bundle_data = build_nightly_bundle(tag, manifest=nightly_manifest(tag))
+        elif bundle is not None:
+            bundle_data = bundle
+        assert bundle_data is not None
+        name = f"{NIGHTLY_BUNDLE}.tar.gz"
+        side = sidecar_data if sidecar_data is not None else sidecar(bundle_data)
+        self.routes[f"/github-nightly/{tag}/{name}"] = {"data": bundle_data}
+        self.routes[f"/github-nightly/{tag}/{name}.sha256"] = {"data": side}
+        if cnb:
+            self.routes[f"/cnb-nightly/{tag}/{name}"] = {"data": bundle_data}
+            self.routes[f"/cnb-nightly/{tag}/{name}.sha256"] = {"data": side}
+
+    def set_nightly_api(self, tags: list[str]) -> None:
+        self.routes["/nightly-api?per_page=20"] = {"data": releases_json(tags)}
 
 
 def test_syntax(h: Harness) -> None:
@@ -1366,6 +1495,308 @@ def test_github_base_url(h: Harness) -> None:
         fail("proxied GitHub download did not install")
 
 
+def test_nightly_latest(h: Harness) -> None:
+    tag = "v0.1.0-nightly.20261014.2"
+    h.add_nightly(tag)
+    # Scrambled order, a same-day rerun suffix, and a stable tag that must be
+    # filtered out (no bundle is registered for it, so picking it would fail).
+    h.set_nightly_api(["v0.1.0-nightly.20261014", tag, "v0.1.0", "v0.1.0-nightly.20261009"])
+    root = h.tmp()
+    env = xdg_env(root)
+    result = run_installer(h.installer(root / "installer.sh"), env, "--nightly")
+    if result.returncode != 0:
+        fail(result.stderr)
+    if "will not export CHIPCOMPILER_OSS_CAD_DIR" not in result.stderr:
+        fail(result.stderr)
+    data, bindir, _cache, config = roots(env)
+    tree = data / "nightly" / tag
+    if not (tree / "ecc" / "ecc").is_file():
+        fail("nightly ecc payload missing")
+    if not (tree / "ecc-sizer" / "bin" / "Sizer").is_file():
+        fail("nightly sizer missing")
+    if not (tree / "kepler-formal" / "bin" / "kepler-formal").is_file():
+        fail("nightly kepler-formal missing")
+    if not (tree / "pdk" / TECH_LEF).is_file():
+        fail("nightly pdk missing")
+    if (tree / "studio").exists():
+        fail("studio AppImage must not be installed")
+    if not (tree / "ecos-manifest.toml").is_file():
+        fail("installed tree must keep its manifest")
+    dumped = read_wrapper_env(bindir / "ecc", env)
+    if dumped["PDK"] != str(tree / "pdk"):
+        fail(dumped)
+    if dumped["SIZER_ROOT"] != str(tree / "ecc-sizer"):
+        fail(dumped)
+    if dumped["KEPLER_ROOT"] != str(tree / "kepler-formal"):
+        fail(dumped)
+    if dumped["OSS"]:
+        fail(f"no stable toolchain installed, OSS must be empty: {dumped}")
+    for entry in (str(tree / "ecc-sizer" / "bin"), str(tree / "kepler-formal")):
+        if entry not in dumped["PATH"].split(":"):
+            fail(f"{entry} missing from wrapper PATH")
+    receipt = json.loads((config / "ecc-receipt.json").read_text())
+    if receipt["version"] != tag:
+        fail(receipt)
+
+
+def test_nightly_pinned_tag_skips_api(h: Harness) -> None:
+    tag = "v0.1.0-nightly.20261015"
+    h.add_nightly(tag)
+    # A pinned tag must not consult the releases API at all.
+    h.routes["/nightly-api?per_page=20"] = {"status": 500}
+    root = h.tmp()
+    env = xdg_env(root)
+    result = run_installer(h.installer(root / "installer.sh"), env, "--nightly-tag", tag)
+    if result.returncode != 0:
+        fail(result.stderr)
+    data, _bindir, _cache, _config = roots(env)
+    if not (data / "nightly" / tag / "ecc" / "ecc").is_file():
+        fail("pinned nightly payload missing")
+
+
+def test_nightly_api_failure(h: Harness) -> None:
+    h.routes["/nightly-api?per_page=20"] = {"status": 500}
+    root = h.tmp()
+    result = run_installer(h.installer(root / "installer.sh"), xdg_env(root), "--nightly")
+    if result.returncode == 0 or "--nightly-tag" not in result.stderr:
+        fail(result.stderr)
+
+
+def test_nightly_bad_tag(h: Harness) -> None:
+    root = h.tmp()
+    installer = h.installer(root / "installer.sh")
+    bad = run_installer(installer, xdg_env(root), "--nightly-tag", "v0.1.0")
+    if bad.returncode == 0 or "invalid --nightly-tag" not in bad.stderr:
+        fail(bad.stderr)
+    env = xdg_env(root / "env")
+    env["ECC_NIGHTLY_TAG"] = "nightly.20261015"
+    bad_env = run_installer(installer, env)
+    if bad_env.returncode == 0 or "invalid --nightly-tag" not in bad_env.stderr:
+        fail(bad_env.stderr)
+
+
+def test_nightly_checksum_mismatch(h: Harness) -> None:
+    tag = "v0.1.0-nightly.20261016"
+    h.add_nightly(tag, sidecar_data=sidecar(b"not the bundle"))
+    root = h.tmp()
+    result = run_installer(h.installer(root / "installer.sh"), xdg_env(root), "--nightly-tag", tag)
+    if result.returncode == 0 or "checksum mismatch" not in result.stderr:
+        fail(result.stderr)
+
+
+def test_nightly_missing_manifest(h: Harness) -> None:
+    tag = "v0.1.0-nightly.20261017"
+    h.add_nightly(tag, bundle=build_nightly_bundle(tag, manifest=None))
+    root = h.tmp()
+    result = run_installer(h.installer(root / "installer.sh"), xdg_env(root), "--nightly-tag", tag)
+    if result.returncode == 0 or "no ecos-manifest.toml" not in result.stderr:
+        fail(result.stderr)
+
+
+def test_nightly_manifest_tag_mismatch(h: Harness) -> None:
+    tag = "v0.1.0-nightly.20261018"
+    bundle = build_nightly_bundle(tag, manifest=nightly_manifest("v0.1.0-nightly.20261017"))
+    h.add_nightly(tag, bundle=bundle)
+    root = h.tmp()
+    result = run_installer(h.installer(root / "installer.sh"), xdg_env(root), "--nightly-tag", tag)
+    if result.returncode == 0 or "does not match the requested" not in result.stderr:
+        fail(result.stderr)
+
+
+def test_nightly_manifest_pdk_tampered(h: Harness) -> None:
+    tag = "v0.1.0-nightly.20261019"
+    # The manifest lists the full PDK file set but the bundle omits it.
+    bundle = build_nightly_bundle(tag, manifest=nightly_manifest(tag), drop_pdk_files=True)
+    h.add_nightly(tag, bundle=bundle)
+    root = h.tmp()
+    env = xdg_env(root)
+    result = run_installer(h.installer(root / "installer.sh"), env, "--nightly-tag", tag)
+    if result.returncode == 0 or "PDK validation failed" not in result.stderr:
+        fail(result.stderr)
+    data = roots(env)[0]
+    if (data / "nightly" / tag).exists():
+        fail("partial nightly install survived PDK validation failure")
+    if list(data.glob(".ecc-staging.*")):
+        fail("rejected install leaked a staging directory")
+
+
+def test_nightly_pdk_path_with_space(h: Harness) -> None:
+    tag = "v0.1.0-nightly.20261025"
+    # Manifest array elements keep their boundaries even with spaces (the
+    # parser accumulates one element per line, never space-joined).
+    spaced = "IP/STD_cell/a b/cell.lef"
+    cells = (*CELL_LEFS, spaced)
+    bundle = build_nightly_bundle(
+        tag,
+        manifest=nightly_manifest(tag, cell_lefs=cells),
+        extra_members={f"pdk/{spaced}": b"MACRO T ;\nEND T\n"},
+    )
+    h.add_nightly(tag, bundle=bundle)
+    root = h.tmp()
+    env = xdg_env(root)
+    result = run_installer(h.installer(root / "installer.sh"), env, "--nightly-tag", tag)
+    if result.returncode != 0:
+        fail(result.stderr)
+    if not (roots(env)[0] / "nightly" / tag / "pdk" / spaced).is_file():
+        fail("space-containing PDK path missing after install")
+
+
+def test_nightly_prune_only_after_wrapper_switch(h: Harness) -> None:
+    tag1 = "v0.1.0-nightly.20261026"
+    tag2 = "v0.1.0-nightly.20261027"
+    h.add_nightly(tag1)
+    h.add_nightly(tag2)
+    root = h.tmp()
+    env = xdg_env(root)
+    installer = h.installer(root / "installer.sh")
+    if run_installer(installer, env, "--nightly-tag", tag1).returncode != 0:
+        fail("first nightly install failed")
+    # Poison the stable OSS CAD Suite so --with-toolchain fails after the
+    # nightly tree is installed: tag1 must survive and the wrapper must stay.
+    saved = dict(h.routes["/github/oss-cad-suite-linux-x64-20260827.tgz"])
+    h.routes["/github/oss-cad-suite-linux-x64-20260827.tgz"] = {"status": 500}
+    h.routes["/cnb/oss-cad-suite-linux-x64-20260827.tgz"] = {"status": 500}
+    try:
+        result = run_installer(installer, env, "--nightly-tag", tag2, "--with-toolchain")
+        if result.returncode == 0:
+            fail("poisoned OSS CAD Suite download succeeded")
+    finally:
+        h.routes["/github/oss-cad-suite-linux-x64-20260827.tgz"] = saved
+        h.routes["/cnb/oss-cad-suite-linux-x64-20260827.tgz"] = {
+            "data": h.assets["oss-cad-suite-linux-x64-20260827.tgz"].data
+        }
+    data, bindir, _cache, _config = roots(env)
+    if not (data / "nightly" / tag1 / "ecc" / "ecc").is_file():
+        fail("previous nightly pruned before the wrapper switched")
+    if not (data / "nightly" / tag2 / "ecc" / "ecc").is_file():
+        fail("new nightly missing after failed toolchain step")
+    if f"nightly/{tag1}/ecc/ecc" not in (bindir / "ecc").read_text():
+        fail("wrapper no longer points at the surviving nightly")
+
+
+def test_nightly_reuse_and_prune(h: Harness) -> None:
+    tag1 = "v0.1.0-nightly.20261020"
+    tag2 = "v0.1.0-nightly.20261021"
+    h.add_nightly(tag1)
+    h.add_nightly(tag2)
+    root = h.tmp()
+    env = xdg_env(root)
+    installer = h.installer(root / "installer.sh")
+    if run_installer(installer, env, "--nightly-tag", tag1).returncode != 0:
+        fail("first nightly install failed")
+    again = run_installer(installer, env, "--nightly-tag", tag1)
+    if again.returncode != 0 or "reusing existing nightly" not in again.stderr:
+        fail(again.stderr)
+    moved = run_installer(installer, env, "--nightly-tag", tag2)
+    if moved.returncode != 0:
+        fail(moved.stderr)
+    if f"removing old nightly {tag1}" not in moved.stderr:
+        fail(moved.stderr)
+    data, bindir, _cache, _config = roots(env)
+    if (data / "nightly" / tag1).exists():
+        fail("old nightly tree not pruned")
+    if not (data / "nightly" / tag2 / "ecc" / "ecc").is_file():
+        fail("new nightly tree missing")
+    wrapper = (bindir / "ecc").read_text()
+    if f"nightly/{tag2}/ecc/ecc" not in wrapper:
+        fail(wrapper)
+
+
+def test_nightly_reuses_stable_oss(h: Harness) -> None:
+    tag = "v0.1.0-nightly.20261022"
+    h.add_nightly(tag)
+    root = h.tmp()
+    env = xdg_env(root)
+    if run_installer(h.installer(root / "stable.sh"), env, "--with-toolchain").returncode != 0:
+        fail("stable toolchain install failed")
+    result = run_installer(h.installer(root / "nightly.sh"), env, "--nightly-tag", tag)
+    if result.returncode != 0:
+        fail(result.stderr)
+    if "existing OSS CAD Suite 20260827" not in result.stderr:
+        fail(result.stderr)
+    data, bindir, _cache, _config = roots(env)
+    dumped = read_wrapper_env(bindir / "ecc", env)
+    if dumped["OSS"] != str(data / "tools" / "oss-cad-suite" / "20260827"):
+        fail(dumped)
+    if dumped["PDK"] != str(data / "nightly" / tag / "pdk"):
+        fail(dumped)
+
+
+def test_nightly_with_toolchain(h: Harness) -> None:
+    tag = "v0.1.0-nightly.20261023"
+    h.add_nightly(tag)
+    root = h.tmp()
+    env = xdg_env(root)
+    result = run_installer(
+        h.installer(root / "installer.sh"),
+        env,
+        "--nightly-tag",
+        tag,
+        "--with-toolchain",
+    )
+    if result.returncode != 0:
+        fail(result.stderr)
+    data, bindir, _cache, _config = roots(env)
+    if not (data / "tools" / "oss-cad-suite" / "20260827" / "bin" / "yosys").is_file():
+        fail("stable OSS CAD Suite missing")
+    # The pinned stable sizer/kepler/PDK must not be installed in nightly mode.
+    if (data / "tools" / "ecc-sizer").exists():
+        fail("stable sizer installed in nightly mode")
+    if (data / "pdks").exists():
+        fail("stable PDK installed in nightly mode")
+    dumped = read_wrapper_env(bindir / "ecc", env)
+    if dumped["OSS"] != str(data / "tools" / "oss-cad-suite" / "20260827"):
+        fail(dumped)
+    if dumped["SIZER_ROOT"] != str(data / "nightly" / tag / "ecc-sizer"):
+        fail(dumped)
+
+
+def test_nightly_cnb_source(h: Harness) -> None:
+    tag = "v0.1.0-nightly.20261024"
+    h.add_nightly(tag)
+    # Poison the GitHub bundle: if the installer used it, the cnb sidecar's
+    # checksum would reject it.
+    h.routes[f"/github-nightly/{tag}/{NIGHTLY_BUNDLE}.tar.gz"] = {"data": b"wrong"}
+    root = h.tmp()
+    env = xdg_env(root)
+    result = run_installer(
+        h.installer(root / "installer.sh"),
+        env,
+        "--download-source",
+        "cnb",
+        "--nightly-tag",
+        tag,
+    )
+    if result.returncode != 0:
+        fail(result.stderr)
+    data, _bindir, _cache, _config = roots(env)
+    if not (data / "nightly" / tag / "ecc" / "ecc").is_file():
+        fail("cnb nightly payload missing")
+
+
+def test_nightly_cnb_fallback_to_github(h: Harness) -> None:
+    # The CNB mirror keeps only the latest nightly: a pinned older tag 404s
+    # there, and cnb mode must fall back to GitHub (byte-identical assets).
+    tag = "v0.1.0-nightly.20261028"
+    h.add_nightly(tag)
+    h.routes[f"/cnb-nightly/{tag}/{NIGHTLY_BUNDLE}.tar.gz"] = {"status": 404}
+    h.routes[f"/cnb-nightly/{tag}/{NIGHTLY_BUNDLE}.tar.gz.sha256"] = {"status": 404}
+    root = h.tmp()
+    env = xdg_env(root)
+    result = run_installer(
+        h.installer(root / "installer.sh"),
+        env,
+        "--download-source",
+        "cnb",
+        "--nightly-tag",
+        tag,
+    )
+    if result.returncode != 0:
+        fail(result.stderr)
+    if not (roots(env)[0] / "nightly" / tag / "ecc" / "ecc").is_file():
+        fail("github-fallback nightly payload missing")
+
+
 CASES = [
     test_syntax,
     test_github_success,
@@ -1400,6 +1831,21 @@ CASES = [
     test_redirect_stall_falls_back,
     test_bash_install,
     test_github_base_url,
+    test_nightly_latest,
+    test_nightly_pinned_tag_skips_api,
+    test_nightly_api_failure,
+    test_nightly_bad_tag,
+    test_nightly_checksum_mismatch,
+    test_nightly_missing_manifest,
+    test_nightly_manifest_tag_mismatch,
+    test_nightly_manifest_pdk_tampered,
+    test_nightly_pdk_path_with_space,
+    test_nightly_prune_only_after_wrapper_switch,
+    test_nightly_reuse_and_prune,
+    test_nightly_reuses_stable_oss,
+    test_nightly_with_toolchain,
+    test_nightly_cnb_source,
+    test_nightly_cnb_fallback_to_github,
 ]
 
 

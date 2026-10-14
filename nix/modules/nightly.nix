@@ -21,6 +21,10 @@
       # paths, plus the installer's validation file list) is single-sourced
       # in toolchain.toml; the pdk recipe consumes this projection.
       toolchain = config.ecos.toolchain;
+      # Validated model view of the [nightly] section (regex self-checked at
+      # eval time in model.nix); injecting the raw toolchain.nightly values
+      # would bypass that check.
+      nightlyModel = config.ecos.model.nightly;
       pdkPkgs = toolchain.pdk_pkg;
       basePkg = lib.findFirst (p: p.kind == "base") null pdkPkgs;
       pdkManifest = pkgs.writeText "nightly-pdk-manifest.json" (
@@ -40,6 +44,63 @@
           );
           verifyPaths = [ toolchain.pdk.tech_lef ] ++ toolchain.pdk.cell_lefs ++ toolchain.pdk.liberty_files;
         }
+      );
+
+      # Bundle manifest template (ecos-manifest.toml) shipped inside the
+      # nightly bundle: the installer's --nightly mode validates the
+      # extracted trees against this file, so the validation data travels
+      # with the artifacts and cannot drift from the nightly assembly the
+      # way the installer's stable pins could. The PDK lists are the same
+      # toolchain.toml projection the pdk recipe consumes; the runtime
+      # values (tag, per-tool version/commit) stay as @NIGHTLY_*@
+      # placeholders for release.sh to substitute. Arrays stay on one line
+      # and placeholders sit inside TOML strings, so the template itself is
+      # valid TOML -- verified by the fromTOML deepSeq below.
+      bundleManifestText =
+        let
+          # The installer's awk parser accepts only [^"\] inside strings and
+          # so does this template: a PDK path with a quote or backslash fails
+          # the build here instead of producing a manifest the installer
+          # would reject as malformed. (requireRelative allows both, and the
+          # fromTOML deepSeq below would catch an unescaped quote anyway, but
+          # with an opaque parse error.)
+          quote =
+            s:
+            if builtins.match ''[^"\\]*'' s == null then
+              throw "nightly bundle manifest: PDK path is not TOML-safe: ${s}"
+            else
+              ''"${s}"'';
+          list = xs: "[ ${lib.concatStringsSep ", " (map quote xs)} ]";
+          toolPlaceholder = tool: lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] tool);
+          toolSection = tool: ''
+            [tools.${tool}]
+            version = "@NIGHTLY_${toolPlaceholder tool}_VERSION@"
+            commit = "@NIGHTLY_${toolPlaceholder tool}_COMMIT@"
+          '';
+        in
+        ''
+          # Machine-readable manifest of this ECOS nightly bundle, consumed by
+          # ecc-installer.sh --nightly. Generated at publish time; do not edit.
+          tag = "@NIGHTLY_TAG@"
+        ''
+        + lib.concatMapStringsSep "\n" toolSection [
+          "ecc"
+          "ecc-sizer"
+          "kepler-formal"
+          "ecos-studio"
+          "pdk"
+        ]
+        + ''
+          [pdk]
+          tech_lef = ${quote toolchain.pdk.tech_lef}
+          cell_lefs = ${list toolchain.pdk.cell_lefs}
+          liberty_files = ${list toolchain.pdk.liberty_files}
+        '';
+
+      bundleManifestParsed = builtins.fromTOML bundleManifestText;
+
+      bundleManifestTemplate = pkgs.writeText "ecos-manifest.toml.in" (
+        builtins.deepSeq bundleManifestParsed bundleManifestText
       );
 
       nightlyBuild = pkgs.writeShellApplication {
@@ -64,10 +125,21 @@
           pkgs.uv
         ];
         text = ''
+          # Single source of truth for the nightly tag shape (toolchain.toml
+          # [nightly] tag_re); the installer gets the same value as its
+          # NIGHTLY_TAG_RE placeholder, and common.sh refuses to run without
+          # it. Must precede the readFile of common.sh.
+          NIGHTLY_TAG_BODY_RE=${lib.escapeShellArg nightlyModel.tagRe}
           ${builtins.readFile ../../nightly/lib/common.sh}
           # The PDK manifest projected from toolchain.toml (single source of
           # truth for the package set and validation paths).
           NIGHTLY_PDK_MANIFEST=${pdkManifest}
+          # The bundle manifest template; release.sh substitutes the
+          # @NIGHTLY_*@ placeholders and ships it as ecos-manifest.toml.
+          NIGHTLY_BUNDLE_MANIFEST_TEMPLATE=${bundleManifestTemplate}
+          # The CLI bundle (no Studio AppImage) published alongside the full
+          # one; release.sh tars it under this name.
+          NIGHTLY_CLI_BUNDLE_NAME=${lib.escapeShellArg nightlyModel.cliBundleName}
           ${builtins.readFile ../../nightly/scripts/ecc.sh}
           ${builtins.readFile ../../nightly/scripts/ecc-sizer.sh}
           ${builtins.readFile ../../nightly/scripts/kepler-formal.sh}
@@ -105,7 +177,13 @@
 
             # Unit-test the bash SemVer comparison used to pick the nightly
             # base version (lib/semver.nix has its own nix-side tests).
+            # common.sh requires the tag regex to be injected (single-sourced
+            # from toolchain.toml).
+            export NIGHTLY_TAG_BODY_RE=${lib.escapeShellArg nightlyModel.tagRe}
             source ${../../nightly}/lib/common.sh
+            # The pipeline's default publish repo is the installer's [nightly]
+            # repo: both name the same GitHub repository.
+            test "$NIGHTLY_RELEASE_REPO" = ${lib.escapeShellArg nightlyModel.repo}
             t() { test "$(nightly_semver_compare "$1" "$2")" = "$3"; }
             t 0.1.0-alpha.12 0.1.0-alpha.13 -1
             t 0.1.0-alpha.9 0.1.0-alpha.10 -1
@@ -195,6 +273,54 @@
             test -f "$tmpd/out/kepler-formal/kepler-formal"
             test -f "$tmpd/out/pdk/prtech/tech.lef"
             test -x "$tmpd/out/studio/ECOS-Studio_1.0.0-nightly.20261012.gabcdef0_x86_64.AppImage"
+
+            # Bundle manifest: fixture substitution fills every @NIGHTLY_*@
+            # placeholder and the PDK lists come through from toolchain.toml.
+            export NIGHTLY_BUNDLE_MANIFEST_TEMPLATE=${bundleManifestTemplate}
+            declare -A tool_version=() tool_commit=()
+            for tool in $NIGHTLY_TOOLS; do
+              tool_version[$tool]="1.0.0-nightly.20261012.gabcdef0"
+              tool_commit[$tool]="0123456789abcdef0123456789abcdef01234567"
+            done
+            nightly_write_bundle_manifest "$tmpd/out" "v0.1.0-nightly.20261012"
+            m="$tmpd/out/ecos-manifest.toml"
+            test -f "$m"
+            grep -q '^tag = "v0.1.0-nightly.20261012"$' "$m"
+            grep -q '^version = "1.0.0-nightly.20261012.gabcdef0"$' "$m"
+            # `! grep` cannot fail the build: set -e exempts negated commands.
+            if grep -q '@NIGHTLY_' "$m"; then
+              echo "unsubstituted placeholder survived in $m" >&2
+              exit 1
+            fi
+            grep -q '^cell_lefs = \[ "' "$m"
+            # Unsafe values are rejected instead of breaking the TOML quoting.
+            # nightly_die exits, so the negative cases run in a subshell.
+            mkdir -p "$tmpd/out2"
+            tool_commit[ecc]='bad"value'
+            if ( nightly_write_bundle_manifest "$tmpd/out2" "v0.1.0-nightly.20261013" ) 2>/dev/null; then
+              echo "nightly_write_bundle_manifest accepted a quote in a value" >&2
+              exit 1
+            fi
+            tool_commit[ecc]='bad\value'
+            if ( nightly_write_bundle_manifest "$tmpd/out2" "v0.1.0-nightly.20261013" ) 2>/dev/null; then
+              echo "nightly_write_bundle_manifest accepted a backslash in a value" >&2
+              exit 1
+            fi
+
+            # The CLI bundle drops studio/ and keeps everything else,
+            # including the manifest.
+            echo "full bundle readme" >"$tmpd/out/README.md"
+            nightly_pack_cli_bundle "$tmpd/out" "$tmpd/cli" "v0.1.0-nightly.20261012"
+            test -f "$tmpd/cli/ecc/ecc"
+            test -f "$tmpd/cli/ecos-manifest.toml"
+            test ! -e "$tmpd/cli/studio"
+            grep -q "CLI edition" "$tmpd/cli/README.md"
+            # The hardlink copy shares inodes: rewriting the CLI README must
+            # not truncate the full bundle's README in place.
+            test "$(cat "$tmpd/out/README.md")" = "full bundle readme"
+            test "$tmpd/cli/ecos-manifest.toml" -ef "$tmpd/out/ecos-manifest.toml"
+            # The full bundle keeps its studio/.
+            test -d "$tmpd/out/studio"
             echo ok > "$out"
           '';
     };

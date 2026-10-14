@@ -18,6 +18,14 @@ curl -fsSL https://release.openecos.com/installers/ecc/latest/ecc-installer.sh |
 
 `--download-source auto|github|cnb` selects the mirror (`auto` tries GitHub, then CNB). The PDK base's CNB mirror is a distinct git archive with its own SHA-256.
 
+Nightly toolchain (ecc, ecc-sizer, kepler-formal, ICS55 PDK from the dated nightly bundle; repoints the `ecc` wrapper — rerun without `--nightly` to switch back):
+
+```sh
+curl -fsSL https://release.openecos.com/installers/ecc/latest/ecc-installer.sh | sh -s -- --nightly
+```
+
+`--nightly-tag vX.Y.Z-nightly.YYYYMMDD[.N]` pins a specific nightly and skips the releases API lookup. The nightly bundle carries no OSS CAD Suite: `--nightly --with-toolchain` installs the stable one alongside, and a bare `--nightly` reuses the stable OSS CAD Suite if it is already installed. Only the newest nightly is mirrored to CNB, so `--download-source cnb` with an older tag falls back to GitHub. Installed nightly trees live in `<data>/nightly/<tag>/`; installing a new tag removes the older trees.
+
 If GitHub is unreachable, set a prefix that replaces `https://github.com`:
 
 ```sh
@@ -50,16 +58,16 @@ Publishing needs `OSS_ACCESS_KEY_ID` and `OSS_ACCESS_KEY_SECRET` plus the bucket
 
 ## Nightly builds
 
-`nightly.yml` builds ecos-studio and aggregates ecc, ecc-sizer, kepler-formal, and the ICS55 PDK every night, publishing **one dated prerelease on this repository** (oss-cad-suite-build style): `v0.1.0-nightly.<yyyymmdd>[.N]`, where `.N` is the same-day rerun suffix (auto-incremented past any colliding tag; `NIGHTLY_SUFFIX` overrides it). Aggregation over rebuilding: ecc ships the PyInstaller bundle artifact of the newest main commit with a green nightly CI check (the existing `ci.yml` schedule at 18:17 UTC — when no green run exists yet, ecc is skipped for the night and its content carries forward), ecc-sizer ships its repository's newest green CI artifact, kepler-formal ships its own repository's latest nightly prerelease (verified against its `.sha256` sidecar), and the PDK is assembled from its newest complete release. Only the ecos-studio AppImage is built from source (no upstream CI artifact exists for it), tracked to its default-branch HEAD. Published tags are never overwritten; the newest 14 dated nightlies are kept. Exactly one asset per nightly (plus its sidecar):
+`nightly.yml` builds ecos-studio and aggregates ecc, ecc-sizer, kepler-formal, and the ICS55 PDK every night, publishing **one dated prerelease on this repository** (oss-cad-suite-build style): `v0.1.0-nightly.<yyyymmdd>[.N]`, where `.N` is the same-day rerun suffix (auto-incremented past any colliding tag; `NIGHTLY_SUFFIX` overrides it). Aggregation over rebuilding: ecc ships the PyInstaller bundle artifact of the newest main commit with a green nightly CI check (the existing `ci.yml` schedule at 18:17 UTC — when no green run exists yet, ecc is skipped for the night and its content carries forward), ecc-sizer ships its repository's newest green CI artifact, kepler-formal ships its own repository's latest nightly prerelease (verified against its `.sha256` sidecar), and the PDK is assembled from its newest complete release. Only the ecos-studio AppImage is built from source (no upstream CI artifact exists for it), tracked to its default-branch HEAD. Published tags are never overwritten; the newest 14 dated nightlies are kept. Two assets per nightly (plus their sidecars):
 
-- `ecos-nightly-linux-x86_64.tar.gz` — the whole toolchain in one bundle: `ecc/` PyInstaller onedir, `ecc-sizer/` and `kepler-formal/` portable runtimes, `pdk/` assembled ICS55 PDK, and `studio/` the AppImage
-- `.sha256` sidecar for it
+- `ecc-cli-nightly-linux-x86_64.tar.gz` — the CLI toolchain bundle: `ecc/` PyInstaller onedir, `ecc-sizer/` and `kepler-formal/` portable runtimes, `pdk/` assembled ICS55 PDK. This is what `ecc-installer.sh --nightly` downloads
+- `ecos-nightly-linux-x86_64.tar.gz` — the same plus `studio/`, the ECOS Studio AppImage, for manual one-stop downloads
 
-The PDK recipe reads its package set and validation file list from a projection of `toolchain.toml`, so the assembled layout can never drift from what the installer produces. OSS CAD Suite stays with the installer's `--with-toolchain` path.
+The PDK recipe reads its package set and validation file list from a projection of `toolchain.toml`, so the assembled layout can never drift from what the installer produces. OSS CAD Suite stays with the installer's `--with-toolchain` path. Each bundle also carries an `ecos-manifest.toml` at its root — the machine interface for `ecc-installer.sh --nightly`: the tag, every tool's version and commit, and the PDK validation file list (the same `toolchain.toml` projection), rendered by `nix/modules/nightly.nix` and substituted at publish time.
 
 The release body records each tool's full version (`<toolbase>-nightly.<date>.g<sha>`, with the base being the tool's next planned release; kepler-formal's version comes from its own nightly tag) and source commit, plus compare links against the previous nightly. A tool is rebuilt only when its HEAD moved or the recipe (`nightly/` tree hash, recorded in the body) changed; unchanged tools carry their content forward from the previous nightly's bundle, and when nothing moved at all no release is created.
 
-The nightly release is a standalone download channel: the registry and the installer keep tracking the tools' stable releases, and Studio's runtime downloads are unaffected. If a CNB mirror of this repository's releases is wanted, create the `cnb.cool/ecoslab/ecos-installer` sync first (CNB retains only the latest nightly, which matches the rolling semantics).
+The nightly release is a separate download channel: the registry keeps tracking the tools' stable releases and Studio's runtime downloads are unaffected, while the installer can consume the bundle directly via `--nightly` (validated against the bundle's `ecos-manifest.toml`, so the checks cannot drift from the nightly assembly). The CNB mirror of this repository retains only the latest nightly, which matches the rolling semantics.
 
 The builds are driven by `nix run .#nightly-build -- <all|ecc|ecc-sizer|kepler-formal|ecos-studio|release>`, but nix only wraps the orchestration — aggregation downloads upstream artifacts and the one source build (ecos-studio) runs the repository's own Makefile, so published artifacts never reference `/nix/store`. Every artifact passes a smoke test before the release is created (the ecc tarball additionally runs on a clean ubuntu:24.04 container). The workflow runs as one serial job: ecc-sizer aggregates before ecos-studio because the AppImage bundles the sizer runtime, preferring that run's fresh artifact over the carried-forward one.
 
@@ -81,7 +89,7 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 | `actionlint` | `actionlint` over `.github/workflows` (expression validity, context availability) |
 | `archive` | `tarfile` safety on synthetic tars: traversal, absolute paths, control characters, escaping links, FIFOs, empty Liberty inventories |
 | `installer-syntax` | `dash -n`, `bash -n`, and `shellcheck -s dash -S error` on the generated script |
-| `installer-e2e` | Fake archives over local HTTP: GitHub success, GitHub failure then CNB, checksum mismatch, unsupported platform, wrapper env, lock, receipt, toolchain fallback |
+| `installer-e2e` | Fake archives over local HTTP: GitHub success, GitHub failure then CNB, checksum mismatch, unsupported platform, wrapper env, lock, receipt, toolchain fallback, plus the `--nightly` channel (latest-tag resolution, pinned tags, sidecar and manifest validation, OSS CAD reuse, old-tree pruning) |
 | `registry-render` | Build `tool-registry.json` from the manifest: entity counts, single version per entity, PDK package shape, dependency closure, retired-field rejection, plus negative eval cases for the closed field sets |
 | `registry-url-tests` | Offline unit tests for the URL checker (HEAD with ranged GET fallback, redirect handling, traversal and empty-URL coverage) |
 | `lock-edit` | `lock-edit` updates one lock entry atomically without touching decoy entries or the canonical formatting; missing entries fail without touching the file |

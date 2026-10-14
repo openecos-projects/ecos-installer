@@ -39,7 +39,11 @@
 # stable tag exists here). Per-tool versions keep the richer
 # <toolbase>-nightly.<yyyymmdd>.g<sha> form and live in asset names and the
 # release body (a single release tag cannot carry three shas).
-NIGHTLY_TAG_BODY_RE='v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}(\.[1-9][0-9]*)?'
+#
+# NIGHTLY_TAG_BODY_RE is single-sourced in toolchain.toml ([nightly] tag_re)
+# and injected by the nix wrapper (and the syntax check); the installer gets
+# the same value as its NIGHTLY_TAG_RE placeholder.
+: "${NIGHTLY_TAG_BODY_RE:?injected from toolchain.toml by the nix wrapper}"
 NIGHTLY_TAG_RE="^${NIGHTLY_TAG_BODY_RE}\$"
 # Strict SemVer 2.0.0 (no leading zeros) for the tags eligible as a tool's
 # nightly base; keeps the numeric comparisons below free of leading-zero
@@ -504,6 +508,65 @@ nightly_clone() {
 nightly_sha256_sidecar() {
   local file="$1"
   (cd "$(dirname "$file")" && sha256sum "$(basename "$file")" >"$(basename "$file").sha256")
+}
+
+# Substitute one @placeholder@ in the bundle manifest. Values land inside
+# TOML strings, so reject anything that could break the quoting (or the sed
+# replacement); the template's structure is fixed at eval time (see
+# nix/modules/nightly.nix).
+nightly_manifest_substitute() {
+  local file="$1" placeholder="$2" value="$3"
+  case "$value" in
+  "" | *'"'* | *\\* | *'&'* | *'|'* | *$'\n'* | *$'\r'*)
+    nightly_die "manifest value for ${placeholder} is empty or not TOML-safe"
+    ;;
+  esac
+  sed -i "s|${placeholder}|${value}|g" "$file"
+}
+
+# Write ecos-manifest.toml into the bundle root from the eval-time template.
+# Reads the caller-scoped tool_version/tool_commit associative arrays of
+# nightly_recipe_release (keyed by $NIGHTLY_TOOLS names).
+nightly_write_bundle_manifest() {
+  local bundle_root="$1" tag="$2"
+  local template="${NIGHTLY_BUNDLE_MANIFEST_TEMPLATE:?}"
+  local out="${bundle_root}/ecos-manifest.toml"
+  local tool uc
+  cp "$template" "$out"
+  nightly_manifest_substitute "$out" "@NIGHTLY_TAG@" "$tag"
+  for tool in $NIGHTLY_TOOLS; do
+    uc="$(printf '%s' "$tool" | tr 'a-z-' 'A-Z_')"
+    nightly_manifest_substitute "$out" "@NIGHTLY_${uc}_VERSION@" "${tool_version[$tool]:?}"
+    nightly_manifest_substitute "$out" "@NIGHTLY_${uc}_COMMIT@" "${tool_commit[$tool]:?}"
+  done
+  if grep -q '@NIGHTLY_[A-Z_]*@' "$out"; then
+    nightly_die "bundle manifest still carries unsubstituted placeholders"
+  fi
+}
+
+# Create the CLI variant of the bundle next to the full one: hardlink-copy
+# (same filesystem, no data duplication), drop the Studio AppImage, and
+# replace the README. The ecos-manifest.toml is shared unchanged.
+nightly_pack_cli_bundle() {
+  local bundle_root="$1" cli_root="$2" tag="$3"
+  cp -al "$bundle_root" "$cli_root" || nightly_die "could not hardlink-copy the bundle"
+  rm -rf "$cli_root/studio"
+  # The hardlinked files share inodes with the full bundle: rewrite the
+  # README through a fresh inode instead of truncating in place.
+  rm -f "$cli_root/README.md"
+  cat >"$cli_root/README.md" <<EOF
+# ECOS nightly toolchain bundle, CLI edition (Linux x86_64)
+
+Release: ${tag}
+
+Same as ecos-nightly-linux-x86_64 minus the ECOS Studio AppImage. This is
+what \`ecc-installer.sh --nightly\` downloads and validates (see
+ecos-manifest.toml). Layout: \`ecc/\`, \`ecc-sizer/\`, \`kepler-formal/\`,
+\`pdk/\`.
+
+Unstable nightly build; use the stable releases of the individual tools for
+production.
+EOF
 }
 
 # Record a built tool's provenance for the publish stage and the next run's
