@@ -513,7 +513,7 @@ nightly_sha256_sidecar() {
 nightly_manifest_substitute() {
   local file="$1" placeholder="$2" value="$3"
   case "$value" in
-  "" | *'"'* | *\'* | *'&'* | *'|'* | *$'\n'* | *$'\r'*)
+  "" | *'"'* | *\\* | *'&'* | *'|'* | *$'\n'* | *$'\r'*)
     nightly_die "manifest value for ${placeholder} is empty or not TOML-safe"
     ;;
   esac
