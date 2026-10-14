@@ -73,6 +73,7 @@ let
   sizer = requireSection "sizer";
   pdkRaw = requireSection "pdk";
   mpcRaw = requireSection "mpc-frame";
+  nightlyRaw = requireSection "nightly";
 
   pdkPkgsRaw =
     let
@@ -209,6 +210,45 @@ let
     "strip_prefix"
     "update_source"
   ];
+
+  nightlyFields = [
+    "repo"
+    "cnb_repo"
+    "bundle_name"
+    "tag_re"
+  ];
+
+  # The nightly channel published on this repository (see nightly/). Not a
+  # locked component: no src, no sha256 — the installer resolves tags and
+  # verifies the bundle's sidecar checksum at install time.
+  nightlyModel =
+    let
+      section = checkFields "nightly" nightlyFields nightlyRaw;
+      repo = requireNonEmpty "nightly.repo" (section.repo or "");
+      cnbRepo = requireNonEmpty "nightly.cnb_repo" (section.cnb_repo or "");
+      repoShape = value: builtins.match "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+" value != null;
+      tagRe = requireNonEmpty "nightly.tag_re" (section.tag_re or "");
+    in
+    if !repoShape repo then
+      throwUn "nightly.repo must look like owner/repo: ${repo}"
+    else if !repoShape cnbRepo then
+      throwUn "nightly.cnb_repo must look like owner/repo: ${cnbRepo}"
+    # Self-check the tag regex against the shapes the publish side produces
+    # (builtins.match is POSIX ERE, same as the installer's grep -E).
+    else if builtins.match tagRe "v0.1.0-nightly.20261010" == null then
+      throwUn "nightly.tag_re does not match a plain dated nightly tag"
+    else if builtins.match tagRe "v0.1.0-nightly.20261010.2" == null then
+      throwUn "nightly.tag_re does not match a same-day rerun tag"
+    else if builtins.match tagRe "v0.1.0" != null then
+      throwUn "nightly.tag_re must not match a stable tag"
+    else
+      {
+        inherit repo cnbRepo tagRe;
+        bundleName = requireNonEmpty "nightly.bundle_name" (section.bundle_name or "");
+        apiUrl = "https://api.github.com/repos/${repo}/releases";
+        githubUrl = "https://github.com/${repo}/releases/download";
+        cnbUrl = "https://cnb.cool/${cnbRepo}/-/releases/download";
+      };
 
   sizerCheck = checkFields "sizer" sizerFields sizer;
 
@@ -623,6 +663,7 @@ let
     ossCadSuite = ossModel;
     sizer = sizerModel;
     pdk = pdkModel;
+    nightly = nightlyModel;
     tools = tools;
     # Name-addressed view of the tools list so installer placeholders
     # (nix/modules/core/placeholders.toml) can reference one tool by a
