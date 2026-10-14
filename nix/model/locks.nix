@@ -78,6 +78,7 @@ let
     "name_template"
     "strip_prefix"
     "needs_cnb_sha256"
+    "cnb_strip_prefix"
     "dest"
   ];
   mpcRuleFields = [
@@ -217,6 +218,8 @@ let
           cnbKindCheck =
             if (checked.needs_cnb_sha256 or false) && kind != "base" then
               throwUn "${label}: needs_cnb_sha256 is only valid on the base package"
+            else if (checked ? cnb_strip_prefix) && kind != "base" then
+              throwUn "${label}: cnb_strip_prefix is only valid on the base package"
             else if kind == "base" && checked ? dest then
               throwUn "${label}: the base package must not carry dest"
             else
@@ -232,6 +235,9 @@ let
         // lib.optionalAttrs (kind == "base") {
           cnb_sha256 = lock.cnbSha256;
           strip_prefix = lock.stripPrefix;
+        }
+        // lib.optionalAttrs (kind == "base" && checked ? cnb_strip_prefix) {
+          cnb_strip_prefix = checked.cnb_strip_prefix;
         }
         // lib.optionalAttrs (kind != "base") { dest = checked.dest or ""; }
       ) list;

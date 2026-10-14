@@ -124,6 +124,13 @@
                 sha256 = pdk.base.sha256;
                 size = pdk.base.size;
                 strip_prefix = pdk.base.stripPrefix;
+              }
+              # The CNB git archive also lacks the GitHub wrapper directory,
+              # so the mirror extracts with its own (empty) strip prefix.
+              // lib.optionalAttrs (pdk.base ? cnbStripPrefix) {
+                cnb_strip_prefix = pdk.base.cnbStripPrefix;
+              }
+              // {
                 packages = map (pkg: {
                   path = pkg.name;
                   url = pkg.url;

@@ -285,7 +285,10 @@ let
       && pdkPlatform ? size
       && pdkPlatform ? strip_prefix;
     pdkBaseCnb =
-      pdkPlatform.cnb_url == model.pdk.base.cnbUrl && pdkPlatform.cnb_sha256 == model.pdk.base.cnbSha256;
+      pdkPlatform.cnb_url == model.pdk.base.cnbUrl
+      && pdkPlatform.cnb_sha256 == model.pdk.base.cnbSha256
+      && pdkPlatform.cnb_strip_prefix == ""
+      && model.pdk.base.cnbStripPrefix == "";
     # Only components with a cnb_url_template expose a mirror: ecc, yosys
     # (oss-cad-suite), and kepler-formal today.
     toolCnbMirrors =
@@ -313,10 +316,13 @@ let
     cnbFieldsAbsentWhereUnexpected =
       !(mpcVersion.platforms.all-platform ? cnb_url)
       && !(mpcVersion.platforms.all-platform ? cnb_sha256)
+      && !(mpcVersion.platforms.all-platform ? cnb_strip_prefix)
       && builtins.all (
-        t: !((builtins.head t.versions).platforms.linux-x86_64 ? cnb_sha256)
+        t:
+        !(builtins.head t.versions).platforms.linux-x86_64 ? cnb_sha256
+        && !(builtins.head t.versions).platforms.linux-x86_64 ? cnb_strip_prefix
       ) registry.tools
-      && builtins.all (pkg: !(pkg ? cnb_sha256)) pdkPlatform.packages
+      && builtins.all (pkg: !(pkg ? cnb_sha256) && !(pkg ? cnb_strip_prefix)) pdkPlatform.packages
       && builtins.all (t: !((builtins.head t.versions).platforms.linux-x86_64 ? cnb_url)) (
         builtins.filter (
           t:
@@ -377,6 +383,7 @@ let
     jq -e 'all(.pdks[0].versions[0].platforms["all-platform"].packages[]; has("path") and has("url") and has("cnb_url") and has("sha256") and has("size") and has("dest"))' "$json"
     jq -e '.pdks[0].versions[0].platforms["all-platform"] | has("cnb_url") and has("cnb_sha256")' "$json"
     jq -e '.pdks[0].versions[0].platforms["all-platform"].cnb_sha256 | test("^[0-9a-f]{64}$")' "$json"
+    jq -e '.pdks[0].versions[0].platforms["all-platform"] | has("cnb_strip_prefix") and .cnb_strip_prefix == ""' "$json"
     jq -e '[.tools[] | select(.versions[0].platforms["linux-x86_64"] | has("cnb_url")) | .name] | sort == ["ecc", "kepler-formal", "yosys"]' "$json"
     jq -e 'all(.tools[] | select(.versions[0].platforms["linux-x86_64"] | has("cnb_url")) | .versions[0].platforms["linux-x86_64"].cnb_url; startswith("https://cnb.cool/"))' "$json"
     jq -e '[.tools[] | .versions[0].platforms["linux-x86_64"] | select(has("cnb_sha256"))] | length == 0' "$json"
