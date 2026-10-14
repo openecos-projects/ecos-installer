@@ -54,7 +54,7 @@ NIGHTLY_API_URL="@NIGHTLY_API_URL@"
 NIGHTLY_GITHUB_URL="@NIGHTLY_GITHUB_URL@"
 NIGHTLY_CNB_URL="@NIGHTLY_CNB_URL@"
 NIGHTLY_BUNDLE_NAME="@NIGHTLY_BUNDLE_NAME@"
-# ERE (grep -E); keep in sync with NIGHTLY_TAG_BODY_RE in nightly/lib/common.sh.
+# ERE (grep -E); single-sourced from toolchain.toml [nightly] tag_re.
 NIGHTLY_TAG_RE='@NIGHTLY_TAG_RE@'
 
 PRINT_VERBOSE=0

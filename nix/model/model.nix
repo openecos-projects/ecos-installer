@@ -234,7 +234,9 @@ let
     else if !repoShape cnbRepo then
       throwUn "nightly.cnb_repo must look like owner/repo: ${cnbRepo}"
     # Self-check the tag regex against the shapes the publish side produces
-    # (builtins.match is POSIX ERE, same as the installer's grep -E).
+    # (builtins.match is POSIX ERE, same as the installer's grep -E and the
+    # pipeline's grep). This is the single source of truth: the pipeline gets
+    # tag_re injected and the installer as a placeholder.
     else if builtins.match tagRe "v0.1.0-nightly.20261010" == null then
       throwUn "nightly.tag_re does not match a plain dated nightly tag"
     else if builtins.match tagRe "v0.1.0-nightly.20261010.2" == null then

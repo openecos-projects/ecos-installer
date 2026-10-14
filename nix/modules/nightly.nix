@@ -21,6 +21,10 @@
       # paths, plus the installer's validation file list) is single-sourced
       # in toolchain.toml; the pdk recipe consumes this projection.
       toolchain = config.ecos.toolchain;
+      # Validated model view of the [nightly] section (regex self-checked at
+      # eval time in model.nix); injecting the raw toolchain.nightly values
+      # would bypass that check.
+      nightlyModel = config.ecos.model.nightly;
       pdkPkgs = toolchain.pdk_pkg;
       basePkg = lib.findFirst (p: p.kind == "base") null pdkPkgs;
       pdkManifest = pkgs.writeText "nightly-pdk-manifest.json" (
@@ -121,6 +125,11 @@
           pkgs.uv
         ];
         text = ''
+          # Single source of truth for the nightly tag shape (toolchain.toml
+          # [nightly] tag_re); the installer gets the same value as its
+          # NIGHTLY_TAG_RE placeholder, and common.sh refuses to run without
+          # it. Must precede the readFile of common.sh.
+          NIGHTLY_TAG_BODY_RE=${lib.escapeShellArg nightlyModel.tagRe}
           ${builtins.readFile ../../nightly/lib/common.sh}
           # The PDK manifest projected from toolchain.toml (single source of
           # truth for the package set and validation paths).
@@ -165,7 +174,13 @@
 
             # Unit-test the bash SemVer comparison used to pick the nightly
             # base version (lib/semver.nix has its own nix-side tests).
+            # common.sh requires the tag regex to be injected (single-sourced
+            # from toolchain.toml).
+            export NIGHTLY_TAG_BODY_RE=${lib.escapeShellArg nightlyModel.tagRe}
             source ${../../nightly}/lib/common.sh
+            # The pipeline's default publish repo is the installer's [nightly]
+            # repo: both name the same GitHub repository.
+            test "$NIGHTLY_RELEASE_REPO" = ${lib.escapeShellArg nightlyModel.repo}
             t() { test "$(nightly_semver_compare "$1" "$2")" = "$3"; }
             t 0.1.0-alpha.12 0.1.0-alpha.13 -1
             t 0.1.0-alpha.9 0.1.0-alpha.10 -1
