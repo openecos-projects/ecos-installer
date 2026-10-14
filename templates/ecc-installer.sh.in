@@ -796,6 +796,31 @@ fetch_nightly_sidecar() {
     printf '%s\n' "$_sha"
 }
 
+# Like download_by_source, but cnb mode falls back to GitHub: the CNB mirror
+# keeps only the latest nightly, so a pinned older tag is GitHub-only. The
+# assets are byte-identical across sources, so the same sidecar sha applies.
+download_nightly_asset() {
+    local _sha="$1"
+    local _name="$2"
+    local _gh="$3"
+    local _cnb="$4"
+    case "$DOWNLOAD_SOURCE" in
+        auto)
+            download_verified "$_sha" "$_name" "$_gh" "$_cnb"
+            ;;
+        github)
+            download_verified "$_sha" "$_name" "$_gh"
+            ;;
+        cnb)
+            if try_download_verified "$_sha" "$_name" "$_cnb"; then
+                return 0
+            fi
+            say "no CNB copy of $_name; downloading from GitHub"
+            download_verified "$_sha" "$_name" "$_gh"
+            ;;
+    esac
+}
+
 download_nightly_bundle() {
     local _tag="$1"
     local _name="${NIGHTLY_BUNDLE_NAME}.tar.gz"
@@ -806,13 +831,16 @@ download_nightly_bundle() {
         return 1
     fi
     _gh="$(rewrite_github_url "${NIGHTLY_GITHUB_URL}/${_tag}/${_name}")"
-    download_by_source "$_sha" "$_name" "$_gh" "$_cnb"
+    download_nightly_asset "$_sha" "$_name" "$_gh" "$_cnb"
 }
 
 # Parse the strict-subset TOML of ecos-manifest.toml (scalars and single-line
 # string arrays, as rendered by nix/modules/nightly.nix) into the N_*
-# variables. Unparseable lines and missing required fields return 1; unknown
-# keys are ignored so newer manifests stay installable by older scripts.
+# variables. Arrays come out one element per line and are accumulated with
+# newline separators: manifest values cannot contain newlines (the awk
+# grammar is line-based), so this preserves elements containing spaces.
+# Unparseable lines and missing required fields return 1; unknown keys are
+# ignored so newer manifests stay installable by older scripts.
 nightly_manifest_vars() {
     local _file="$1"
     local _lines
@@ -834,13 +862,10 @@ nightly_manifest_vars() {
         }
         /^[A-Za-z_]+ = \[[[:space:]]*("[^"\\]*"[[:space:]]*,[[:space:]]*)*"[^"\\]*"[[:space:]]*\][[:space:]]*$/ {
             rest = $0
-            out = ""
             while (match(rest, /"[^"\\]*"/)) {
-                v = substr(rest, RSTART + 1, RLENGTH - 2)
-                out = out (out == "" ? "" : " ") v
+                emit(section, $1, substr(rest, RSTART + 1, RLENGTH - 2), 1)
                 rest = substr(rest, RSTART + RLENGTH)
             }
-            emit(section, $1, out, 1)
             next
         }
         {
@@ -882,10 +907,12 @@ nightly_manifest_vars() {
                 N_PDK_TECH_LEF="${_l#pdk_tech_lef=}"
                 ;;
             pdk_cell_lefs=*)
-                N_PDK_CELL_LEFS="${_l#pdk_cell_lefs=}"
+                N_PDK_CELL_LEFS="${N_PDK_CELL_LEFS}${N_PDK_CELL_LEFS:+
+}${_l#pdk_cell_lefs=}"
                 ;;
             pdk_liberty_files=*)
-                N_PDK_LIBERTY_FILES="${_l#pdk_liberty_files=}"
+                N_PDK_LIBERTY_FILES="${N_PDK_LIBERTY_FILES}${N_PDK_LIBERTY_FILES:+
+}${_l#pdk_liberty_files=}"
                 ;;
         esac
     done <<EOF_MANIFEST
@@ -912,8 +939,11 @@ new_staging() {
     if [ -n "${STAGING_DIR:-}" ] && [ -d "$STAGING_DIR" ]; then
         rm -rf "$STAGING_DIR"
     fi
-    STAGING_DIR="$(mktemp -d "${DATA_ROOT}/.ecc-staging.XXXXXX")"
-    printf '%s\n' "$STAGING_DIR"
+    # Must be called directly, not through command substitution: the cleanup
+    # trap keys off STAGING_DIR in the main shell.
+    if ! STAGING_DIR="$(mktemp -d "${DATA_ROOT}/.ecc-staging.XXXXXX")"; then
+        err "could not create a staging directory under ${DATA_ROOT}"
+    fi
 }
 
 clear_staging() {
@@ -1194,7 +1224,8 @@ install_ecc_bundle() {
         fi
         err "existing ECC directory ${_dest} is incomplete or failed validation; move it aside before reinstalling"
     fi
-    _staging="$(new_staging)"
+    new_staging
+    _staging="$STAGING_DIR"
     extract_archive "$_archive" "$_staging"
     if ! _root="$(find_ecc_root "$_staging")"; then
         err "ECC archive is missing the expected ecc and _internal layout"
@@ -1225,7 +1256,8 @@ install_oss_cad() {
         fi
         err "existing OSS CAD Suite directory ${_dest} is invalid and will not be replaced in place"
     fi
-    _staging="$(new_staging)"
+    new_staging
+    _staging="$STAGING_DIR"
     extract_archive "$_archive" "$_staging"
     if ! _root="$(find_oss_root "$_staging")"; then
         err "OSS CAD Suite archive is missing bin/yosys"
@@ -1257,7 +1289,8 @@ install_sizer() {
         fi
         err "existing ecc-sizer directory ${_dest} is invalid and will not be replaced in place"
     fi
-    _staging="$(new_staging)"
+    new_staging
+    _staging="$STAGING_DIR"
     extract_archive "$_archive" "$_staging"
     if ! _root="$(find_sizer_root "$_staging")"; then
         err "ecc-sizer archive is missing the expected bin/Sizer layout"
@@ -1289,7 +1322,8 @@ install_kepler() {
         fi
         err "existing kepler-formal directory ${_dest} is invalid and will not be replaced in place"
     fi
-    _staging="$(new_staging)"
+    new_staging
+    _staging="$STAGING_DIR"
     extract_archive "$_archive" "$_staging"
     if ! _root="$(find_kepler_root "$_staging")"; then
         err "kepler-formal archive is missing the expected kepler-formal wrapper layout"
@@ -1326,10 +1360,7 @@ validate_nightly_tree() {
     if ! validate_kepler_dir "$_dir/kepler-formal"; then
         return 1
     fi
-    # shellcheck disable=SC2086 # the manifest lists are meant to word-split
-    if ! printf '%s\n' $N_PDK_CELL_LEFS $N_PDK_LIBERTY_FILES | validate_pdk_dir "$_dir/pdk" "$N_PDK_TECH_LEF"; then
-        return 1
-    fi
+    printf '%s\n' "$N_PDK_CELL_LEFS" "$N_PDK_LIBERTY_FILES" | validate_pdk_dir "$_dir/pdk" "$N_PDK_TECH_LEF" || return 1
     return 0
 }
 
@@ -1362,6 +1393,7 @@ install_nightly_bundle() {
     local _staging
     local _root
     local _cand
+    local _assembled
     if [ -e "$_dest" ]; then
         if [ -d "$_dest" ] && validate_nightly_tree "$_dest"; then
             say "reusing existing nightly ${_tag}"
@@ -1369,7 +1401,8 @@ install_nightly_bundle() {
         fi
         err "existing nightly directory ${_dest} is incomplete or failed validation; move it aside before reinstalling"
     fi
-    _staging="$(new_staging)"
+    new_staging
+    _staging="$STAGING_DIR"
     extract_archive "$_archive" "$_staging"
     # The bundle root carries ecos-manifest.toml; tolerate one wrapping
     # directory level, like the stable find_*_root helpers.
@@ -1402,21 +1435,24 @@ install_nightly_bundle() {
     if ! validate_kepler_dir "$_root/kepler-formal"; then
         err "kepler-formal validation failed for the nightly bundle"
     fi
-    # shellcheck disable=SC2086 # the manifest lists are meant to word-split
-    if ! printf '%s\n' $N_PDK_CELL_LEFS $N_PDK_LIBERTY_FILES | validate_pdk_dir "$_root/pdk" "$N_PDK_TECH_LEF"; then
+    if ! printf '%s\n' "$N_PDK_CELL_LEFS" "$N_PDK_LIBERTY_FILES" | validate_pdk_dir "$_root/pdk" "$N_PDK_TECH_LEF"; then
         err "ICS55 PDK validation failed for the nightly bundle"
     fi
-    ensure mkdir -p "$_dest"
+    # Assemble the complete tree before promoting: moving subtrees into the
+    # destination one by one would leave a half-installed tag behind on the
+    # first failure, and the reuse path refuses to replace invalid trees.
+    _assembled="${_staging}/.assembled"
+    ensure mkdir -p "$_assembled"
     # Only the four toolchain subtrees are promoted; the studio AppImage and
     # any other bundle content is discarded with the staging directory.
-    promote_dir "$_root/ecc" "$_dest/ecc"
-    promote_dir "$_root/ecc-sizer" "$_dest/ecc-sizer"
-    promote_dir "$_root/kepler-formal" "$_dest/kepler-formal"
-    promote_dir "$_root/pdk" "$_dest/pdk"
-    ensure cp "$_root/ecos-manifest.toml" "$_dest/ecos-manifest.toml"
+    ensure mv "$_root/ecc" "$_assembled/ecc"
+    ensure mv "$_root/ecc-sizer" "$_assembled/ecc-sizer"
+    ensure mv "$_root/kepler-formal" "$_assembled/kepler-formal"
+    ensure mv "$_root/pdk" "$_assembled/pdk"
+    ensure cp "$_root/ecos-manifest.toml" "$_assembled/ecos-manifest.toml"
+    promote_dir "$_assembled" "$_dest"
     rm -rf "$_staging"
     clear_staging
-    prune_old_nightlies "$_tag"
 }
 
 prefetch_pdk_supplementals() {
@@ -1466,7 +1502,8 @@ install_pdk() {
         fi
         err "existing ICS55 PDK directory ${_dest} is invalid and will not be replaced in place"
     fi
-    _staging="$(new_staging)"
+    new_staging
+    _staging="$STAGING_DIR"
     extract_archive "$_archive" "$_staging"
     if ! _root="$(find_pdk_root "$_staging")"; then
         err "ICS55 PDK base archive is missing the expected prtech layout"
@@ -1669,6 +1706,9 @@ main() {
         KEPLER_ROOT="${DATA_ROOT}/nightly/${NIGHTLY_TAG}/kepler-formal"
         write_wrapper "$NIGHTLY_TAG" "nightly/${NIGHTLY_TAG}/ecc/ecc" "$OSS_ROOT" "$PDK_ROOT" "$SIZER_ROOT" "$KEPLER_ROOT"
         write_receipt "$NIGHTLY_TAG"
+        # Prune only after the wrapper points at the new tree: failing earlier
+        # steps must not strand the wrapper on a deleted nightly.
+        prune_old_nightlies "$NIGHTLY_TAG"
         say "installed ECC nightly ${NIGHTLY_TAG} to ${DATA_ROOT}/nightly/${NIGHTLY_TAG}"
     else
         install_ecc_bundle "$ECC_ARCHIVE"

@@ -54,7 +54,18 @@
       # valid TOML -- verified by the fromTOML deepSeq below.
       bundleManifestText =
         let
-          quote = s: ''"${s}"'';
+          # The installer's awk parser accepts only [^"\] inside strings and
+          # so does this template: a PDK path with a quote or backslash fails
+          # the build here instead of producing a manifest the installer
+          # would reject as malformed. (requireRelative allows both, and the
+          # fromTOML deepSeq below would catch an unescaped quote anyway, but
+          # with an opaque parse error.)
+          quote =
+            s:
+            if builtins.match ''[^"\\]*'' s == null then
+              throw "nightly bundle manifest: PDK path is not TOML-safe: ${s}"
+            else
+              ''"${s}"'';
           list = xs: "[ ${lib.concatStringsSep ", " (map quote xs)} ]";
           toolPlaceholder = tool: lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] tool);
           toolSection = tool: ''
@@ -258,14 +269,23 @@
             test -f "$m"
             grep -q '^tag = "v0.1.0-nightly.20261012"$' "$m"
             grep -q '^version = "1.0.0-nightly.20261012.gabcdef0"$' "$m"
-            ! grep -q '@NIGHTLY_' "$m"
+            # `! grep` cannot fail the build: set -e exempts negated commands.
+            if grep -q '@NIGHTLY_' "$m"; then
+              echo "unsubstituted placeholder survived in $m" >&2
+              exit 1
+            fi
             grep -q '^cell_lefs = \[ "' "$m"
             # Unsafe values are rejected instead of breaking the TOML quoting.
-            # nightly_die exits, so the negative case runs in a subshell.
+            # nightly_die exits, so the negative cases run in a subshell.
             mkdir -p "$tmpd/out2"
             tool_commit[ecc]='bad"value'
             if ( nightly_write_bundle_manifest "$tmpd/out2" "v0.1.0-nightly.20261013" ) 2>/dev/null; then
               echo "nightly_write_bundle_manifest accepted a quote in a value" >&2
+              exit 1
+            fi
+            tool_commit[ecc]='bad\value'
+            if ( nightly_write_bundle_manifest "$tmpd/out2" "v0.1.0-nightly.20261013" ) 2>/dev/null; then
+              echo "nightly_write_bundle_manifest accepted a backslash in a value" >&2
               exit 1
             fi
             echo ok > "$out"

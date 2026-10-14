@@ -442,7 +442,11 @@ liberty_files = [ {quoted_libs} ]
 
 
 def build_nightly_bundle(
-    tag: str, *, manifest: bytes | None = None, drop_pdk_files: bool = False
+    tag: str,
+    *,
+    manifest: bytes | None = None,
+    drop_pdk_files: bool = False,
+    extra_members: dict[str, bytes] | None = None,
 ) -> bytes:
     # The assembled bundle layout: ecc/ onedir, ecc-sizer/ and kepler-formal/
     # portable runtimes, pdk/ fully assembled (no supplementals), studio/.
@@ -464,6 +468,8 @@ def build_nightly_bundle(
             members[f"{NIGHTLY_BUNDLE}/pdk/{path}"] = b"MACRO TEST ;\nEND TEST\n"
         for path in liberty_paths():
             members[f"{NIGHTLY_BUNDLE}/pdk/{path}"] = b"library (t) {}\n"
+    for name, content in (extra_members or {}).items():
+        members[f"{NIGHTLY_BUNDLE}/{name}"] = content
     if manifest is not None:
         members[f"{NIGHTLY_BUNDLE}/ecos-manifest.toml"] = manifest
     return pack_tar(members, compression="gz")
@@ -1603,12 +1609,69 @@ def test_nightly_manifest_pdk_tampered(h: Harness) -> None:
     bundle = build_nightly_bundle(tag, manifest=nightly_manifest(tag), drop_pdk_files=True)
     h.add_nightly(tag, bundle=bundle)
     root = h.tmp()
-    result = run_installer(h.installer(root / "installer.sh"), xdg_env(root), "--nightly-tag", tag)
+    env = xdg_env(root)
+    result = run_installer(h.installer(root / "installer.sh"), env, "--nightly-tag", tag)
     if result.returncode == 0 or "PDK validation failed" not in result.stderr:
         fail(result.stderr)
-    data = roots(xdg_env(root))[0]
+    data = roots(env)[0]
     if (data / "nightly" / tag).exists():
         fail("partial nightly install survived PDK validation failure")
+    if list(data.glob(".ecc-staging.*")):
+        fail("rejected install leaked a staging directory")
+
+
+def test_nightly_pdk_path_with_space(h: Harness) -> None:
+    tag = "v0.1.0-nightly.20261025"
+    # Manifest array elements keep their boundaries even with spaces (the
+    # parser accumulates one element per line, never space-joined).
+    spaced = "IP/STD_cell/a b/cell.lef"
+    cells = (*CELL_LEFS, spaced)
+    bundle = build_nightly_bundle(
+        tag,
+        manifest=nightly_manifest(tag, cell_lefs=cells),
+        extra_members={f"pdk/{spaced}": b"MACRO T ;\nEND T\n"},
+    )
+    h.add_nightly(tag, bundle=bundle)
+    root = h.tmp()
+    env = xdg_env(root)
+    result = run_installer(h.installer(root / "installer.sh"), env, "--nightly-tag", tag)
+    if result.returncode != 0:
+        fail(result.stderr)
+    if not (roots(env)[0] / "nightly" / tag / "pdk" / spaced).is_file():
+        fail("space-containing PDK path missing after install")
+
+
+def test_nightly_prune_only_after_wrapper_switch(h: Harness) -> None:
+    tag1 = "v0.1.0-nightly.20261026"
+    tag2 = "v0.1.0-nightly.20261027"
+    h.add_nightly(tag1)
+    h.add_nightly(tag2)
+    root = h.tmp()
+    env = xdg_env(root)
+    installer = h.installer(root / "installer.sh")
+    if run_installer(installer, env, "--nightly-tag", tag1).returncode != 0:
+        fail("first nightly install failed")
+    # Poison the stable OSS CAD Suite so --with-toolchain fails after the
+    # nightly tree is installed: tag1 must survive and the wrapper must stay.
+    saved = dict(h.routes["/github/oss-cad-suite-linux-x64-20260827.tgz"])
+    h.routes["/github/oss-cad-suite-linux-x64-20260827.tgz"] = {"status": 500}
+    h.routes["/cnb/oss-cad-suite-linux-x64-20260827.tgz"] = {"status": 500}
+    try:
+        result = run_installer(installer, env, "--nightly-tag", tag2, "--with-toolchain")
+        if result.returncode == 0:
+            fail("poisoned OSS CAD Suite download succeeded")
+    finally:
+        h.routes["/github/oss-cad-suite-linux-x64-20260827.tgz"] = saved
+        h.routes["/cnb/oss-cad-suite-linux-x64-20260827.tgz"] = {
+            "data": h.assets["oss-cad-suite-linux-x64-20260827.tgz"].data
+        }
+    data, bindir, _cache, _config = roots(env)
+    if not (data / "nightly" / tag1 / "ecc" / "ecc").is_file():
+        fail("previous nightly pruned before the wrapper switched")
+    if not (data / "nightly" / tag2 / "ecc" / "ecc").is_file():
+        fail("new nightly missing after failed toolchain step")
+    if f"nightly/{tag1}/ecc/ecc" not in (bindir / "ecc").read_text():
+        fail("wrapper no longer points at the surviving nightly")
 
 
 def test_nightly_reuse_and_prune(h: Harness) -> None:
@@ -1711,6 +1774,29 @@ def test_nightly_cnb_source(h: Harness) -> None:
         fail("cnb nightly payload missing")
 
 
+def test_nightly_cnb_fallback_to_github(h: Harness) -> None:
+    # The CNB mirror keeps only the latest nightly: a pinned older tag 404s
+    # there, and cnb mode must fall back to GitHub (byte-identical assets).
+    tag = "v0.1.0-nightly.20261028"
+    h.add_nightly(tag)
+    h.routes[f"/cnb-nightly/{tag}/{NIGHTLY_BUNDLE}.tar.gz"] = {"status": 404}
+    h.routes[f"/cnb-nightly/{tag}/{NIGHTLY_BUNDLE}.tar.gz.sha256"] = {"status": 404}
+    root = h.tmp()
+    env = xdg_env(root)
+    result = run_installer(
+        h.installer(root / "installer.sh"),
+        env,
+        "--download-source",
+        "cnb",
+        "--nightly-tag",
+        tag,
+    )
+    if result.returncode != 0:
+        fail(result.stderr)
+    if not (roots(env)[0] / "nightly" / tag / "ecc" / "ecc").is_file():
+        fail("github-fallback nightly payload missing")
+
+
 CASES = [
     test_syntax,
     test_github_success,
@@ -1753,10 +1839,13 @@ CASES = [
     test_nightly_missing_manifest,
     test_nightly_manifest_tag_mismatch,
     test_nightly_manifest_pdk_tampered,
+    test_nightly_pdk_path_with_space,
+    test_nightly_prune_only_after_wrapper_switch,
     test_nightly_reuse_and_prune,
     test_nightly_reuses_stable_oss,
     test_nightly_with_toolchain,
     test_nightly_cnb_source,
+    test_nightly_cnb_fallback_to_github,
 ]
 
 
