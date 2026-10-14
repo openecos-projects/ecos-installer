@@ -39,7 +39,11 @@
 # stable tag exists here). Per-tool versions keep the richer
 # <toolbase>-nightly.<yyyymmdd>.g<sha> form and live in asset names and the
 # release body (a single release tag cannot carry three shas).
-NIGHTLY_TAG_BODY_RE='v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}(\.[1-9][0-9]*)?'
+#
+# NIGHTLY_TAG_BODY_RE is single-sourced in toolchain.toml ([nightly] tag_re)
+# and injected by the nix wrapper (and the syntax check); the installer gets
+# the same value as its NIGHTLY_TAG_RE placeholder.
+: "${NIGHTLY_TAG_BODY_RE:?injected from toolchain.toml by the nix wrapper}"
 NIGHTLY_TAG_RE="^${NIGHTLY_TAG_BODY_RE}\$"
 # Strict SemVer 2.0.0 (no leading zeros) for the tags eligible as a tool's
 # nightly base; keeps the numeric comparisons below free of leading-zero

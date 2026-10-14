@@ -24,10 +24,10 @@ cpu = "x86_64"
 min_glibc = "2.34"
 
 # The nightly channel published by nightly.yml: where the dated prereleases
-# live and what the single bundle asset is called. tag_re must stay in sync
-# with NIGHTLY_TAG_BODY_RE in nightly/lib/common.sh; the installer uses it to
-# validate --nightly-tag and to filter the releases API. Consumed only by the
-# installer's --nightly mode; bump never touches this section.
+# live and what the single bundle asset is called. tag_re is the single
+# source of truth for the nightly tag shape: the pipeline gets it injected as
+# NIGHTLY_TAG_BODY_RE and the installer as the NIGHTLY_TAG_RE placeholder.
+# bump never touches this section.
 [nightly]
 repo = "openecos-projects/ecos-installer"
 cnb_repo = "ecoslab/ecos-installer"
