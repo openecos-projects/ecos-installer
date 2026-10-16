@@ -82,7 +82,7 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 | `archive` | `tarfile` safety on synthetic tars: traversal, absolute paths, control characters, escaping links, FIFOs, empty Liberty inventories |
 | `installer-syntax` | `dash -n`, `bash -n`, and `shellcheck -s dash -S error` on the generated script |
 | `installer-e2e` | Fake archives over local HTTP: GitHub success, GitHub failure then CNB, checksum mismatch, unsupported platform, wrapper env, lock, receipt, toolchain fallback |
-| `registry-render` | Build `tool-registry.json` from the manifest: entity counts, single version per entity, PDK package shape, dependency closure, retired-field rejection, plus negative eval cases for the closed field sets |
+| `registry-render` | Build `tool-registry.json` from the manifest: entity counts, single version per entity, PDK package shape, CNB mirror fields (`cnb_url` presence against the model, base `cnb_sha256`, absence elsewhere), dependency closure, retired-field rejection, plus negative eval cases for the closed field sets |
 | `registry-url-tests` | Offline unit tests for the URL checker (HEAD with ranged GET fallback, redirect handling, traversal and empty-URL coverage) |
 | `lock-edit` | `lock-edit` updates one lock entry atomically without touching decoy entries or the canonical formatting; missing entries fail without touching the file |
 | `treefmt` | `treefmt` dry-run: nixfmt, ruff, taplo, yamlfmt, shfmt, ormolu |
@@ -92,6 +92,8 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 ## Tool registry publishing
 
 `nix/toolchain.toml` (rules) and `nix/_sources/generated.json` (locks) are the single source of truth for both the installer and the ECOS Studio registry. `nix build .#tool-registry` projects the merged model to `tool-registry.json` (`schema_version` 2; the PDK entry is a base lock plus a `packages` array; the sizer is installer-only and never appears).
+
+Assets with a CNB mirror carry `cnb_url` next to `url` so ECOS Studio can fall back to — or explicitly switch to — the CNB mirror when GitHub is unreachable. The PDK base additionally carries `cnb_sha256` because its CNB git archive has different bytes from the GitHub tarball, and `cnb_strip_prefix` (empty: extract at root) because the git archive lacks the GitHub wrapper directory; all other mirrors serve byte-identical assets and verify against the same `sha256`. Components without a mirror simply omit `cnb_url`.
 
 Two URLs serve the same bytes:
 

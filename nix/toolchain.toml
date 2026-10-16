@@ -229,13 +229,15 @@ liberty_files = [
 
 # Base package (git archive). The installer always extracts it to the PDK
 # root, so it carries no dest. The CNB git archive has different bytes from
-# the GitHub tarball, hence needs_cnb_sha256.
+# the GitHub tarball, hence needs_cnb_sha256, and it also lacks the GitHub
+# wrapper directory, hence the empty cnb_strip_prefix (extract at root).
 [[pdk_pkg]]
 id = "icsprout55-base"
 kind = "base"
 url_template = "https://github.com/openecos-projects/icsprout55-pdk/archive/refs/tags/{version}.tar.gz"
 cnb_url_template = "https://cnb.cool/ecoslab/icsprout55-pdk/-/git/archive/{version}.tar.gz"
 needs_cnb_sha256 = true
+cnb_strip_prefix = ""
 name_template = "icsprout55-pdk-{version}.tar.gz"
 strip_prefix = "icsprout55-pdk-{version^}"
 

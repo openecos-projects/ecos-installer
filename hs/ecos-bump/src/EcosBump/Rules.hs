@@ -179,7 +179,7 @@ componentEntry allowed label doc = do
       }
 
 pkgRuleFields :: [Text]
-pkgRuleFields = ["id", "kind", "url_template", "cnb_url_template", "name_template", "strip_prefix", "needs_cnb_sha256", "dest"]
+pkgRuleFields = ["id", "kind", "url_template", "cnb_url_template", "name_template", "strip_prefix", "needs_cnb_sha256", "cnb_strip_prefix", "dest"]
 
 pkgKinds :: [Text]
 pkgKinds = ["base", "liberty", "gds"]
@@ -193,6 +193,7 @@ pkgEntry pdkManual pkg = do
   check label ("kind must be base, liberty, or gds: " <> T.unpack kind) (kind `elem` pkgKinds)
   needsCnb <- optBool label pkg "needs_cnb_sha256"
   check label "needs_cnb_sha256 is only valid on the base package" (not needsCnb || kind == "base")
+  check label "cnb_strip_prefix is only valid on the base package" (kind == "base" || not (Map.member "cnb_strip_prefix" pkg))
   check label "the base package must not carry dest" (kind /= "base" || not (Map.member "dest" pkg))
   urlT <- reqStr label pkg "url_template" >>= checkTemplate (label <> ".url_template")
   cnbT <- optStr label pkg "cnb_url_template" >>= maybe (Right Nothing) (fmap Just . checkTemplate (label <> ".cnb_url_template"))

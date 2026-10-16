@@ -191,6 +191,7 @@ let
     "sha256"
     "size"
     "cnb_sha256"
+    "cnb_strip_prefix"
     "strip_prefix"
     "dest"
   ];
@@ -254,6 +255,20 @@ let
           );
           stripPrefix = requireNonEmpty "${label}.strip_prefix" (checked.strip_prefix or "");
         }
+        // (
+          let
+            v = checked.cnb_strip_prefix or null;
+          in
+          if v == null then
+            { }
+          else if !builtins.isString v || hasControl v then
+            throwUn "${label}.cnb_strip_prefix must be a plain string"
+          else if v == "" then
+            # The CNB git archive has no wrapper directory: extract at root.
+            { cnbStripPrefix = ""; }
+          else
+            { cnbStripPrefix = requireRelative "${label}.cnb_strip_prefix" v; }
+        )
         // {
           url = requireSuffix "${label}.url" baseArchiveSuffixes common.url;
         }
@@ -263,8 +278,8 @@ let
         "gds"
       ]
     then
-      if checked ? cnb_sha256 || checked ? strip_prefix then
-        throwUn "${label} must not carry cnb_sha256 or strip_prefix; only the base package does"
+      if checked ? cnb_sha256 || checked ? cnb_strip_prefix || checked ? strip_prefix then
+        throwUn "${label} must not carry cnb_sha256, cnb_strip_prefix, or strip_prefix; only the base package does"
       else
         common
         // {
