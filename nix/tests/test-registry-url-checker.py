@@ -246,8 +246,34 @@ class RegistryUrlCheckerTests(unittest.TestCase):
         self.assertIsNone(error)
         self.assertEqual(["HEAD", "GET"], [request.get_method() for request in requests])
 
-    def test_url_checker_does_not_fall_back_on_head_not_found(self) -> None:
-        """A HEAD 404 fails immediately; the ranged GET must not rescue it."""
+    def test_url_checker_falls_back_on_head_404(self) -> None:
+        """CNB's git-archive endpoint answers HEAD 404 for archives that
+        exist; the ranged GET disambiguates."""
+        requests: list[Request] = []
+
+        def opener(request: Request, timeout: float) -> FakeResponse:
+            del timeout
+            requests.append(request)
+            if request.get_method() == "HEAD":
+                raise HTTPError(
+                    request.full_url,
+                    404,
+                    "Not Found",
+                    HTTPMessage(),
+                    None,
+                )
+            return FakeResponse(206)
+
+        error = registry_url_checker.check_url_reachable(
+            "https://cnb.cool/ecoslab/icsprout55-pdk/-/git/archive/v1.0.0.tar.gz",
+            opener=opener,
+        )
+
+        self.assertIsNone(error)
+        self.assertEqual(["HEAD", "GET"], [request.get_method() for request in requests])
+
+    def test_url_checker_fails_when_head_and_get_both_miss(self) -> None:
+        """A genuinely missing URL fails the ranged GET as well."""
         requests: list[Request] = []
 
         def opener(request: Request, timeout: float) -> FakeResponse:
@@ -261,8 +287,8 @@ class RegistryUrlCheckerTests(unittest.TestCase):
         )
 
         self.assertIsNotNone(error)
-        self.assertIn("HEAD returned HTTP 404", error)
-        self.assertEqual(["HEAD"], [request.get_method() for request in requests])
+        self.assertIn("GET returned HTTP 404", error)
+        self.assertEqual(["HEAD", "GET"], [request.get_method() for request in requests])
 
     def test_url_checker_does_not_fall_back_on_head_timeout(self) -> None:
         """A HEAD timeout fails immediately; the ranged GET must not rescue it."""
@@ -354,7 +380,8 @@ class RegistryUrlCheckerTests(unittest.TestCase):
         )
 
         self.assertIsNotNone(status_error)
-        self.assertIn("HEAD returned HTTP 404", status_error)
+        # HEAD 404 falls back to the ranged GET, which also misses here.
+        self.assertIn("GET returned HTTP 404", status_error)
 
     def test_url_checking_reports_malformed_url_without_crashing(self) -> None:
         """Return a normal URL-check error for malformed URLs instead of crashing."""

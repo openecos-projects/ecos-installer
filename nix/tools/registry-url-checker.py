@@ -2,9 +2,11 @@
 
 Usage: check-registry-urls <tool-registry.json>
 
-HEAD is probed first; a ranged GET fallback covers servers that reject
-HEAD. Any non-success status, timeout, empty URL, or malformed entry
-fails with a non-zero exit.
+HEAD is probed first; a ranged GET fallback covers servers that reject HEAD
+(405/501) and endpoints that misanswer it — CNB's on-the-fly git-archive
+returns 404 for HEAD even when the archive exists. A ranged GET returning
+success with bytes is ground truth in either case. Any non-success status,
+timeout, empty URL, or malformed entry fails with a non-zero exit.
 """
 
 from __future__ import annotations
@@ -54,7 +56,10 @@ def _open_url(request: Request, timeout: float) -> UrlResponse:
     return urlopen(request, timeout=timeout)
 
 
-HEAD_FALLBACK_STATUSES = (405, 501)
+# 405/501: method rejected outright. 404: CNB's git-archive endpoint
+# misanswers HEAD with 404 for archives that exist; the ranged GET
+# disambiguates (a genuinely missing URL fails the GET as well).
+HEAD_FALLBACK_STATUSES = (404, 405, 501)
 
 
 def check_url_reachable(
