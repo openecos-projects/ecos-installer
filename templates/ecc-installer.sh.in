@@ -50,10 +50,18 @@ PDK_BASE_CNB_URL="@PDK_BASE_CNB_URL@"
 PDK_BASE_CNB_SHA256="@PDK_BASE_CNB_SHA256@"
 PDK_TECH_LEF="@PDK_TECH_LEF@"
 WRAPPER_MARKER="# ecos-release-wrapper-v1"
+NIGHTLY_API_URL="@NIGHTLY_API_URL@"
+NIGHTLY_GITHUB_URL="@NIGHTLY_GITHUB_URL@"
+NIGHTLY_CNB_URL="@NIGHTLY_CNB_URL@"
+NIGHTLY_BUNDLE_NAME="@NIGHTLY_BUNDLE_NAME@"
+# ERE (grep -E); single-sourced from toolchain.toml [nightly] tag_re.
+NIGHTLY_TAG_RE='@NIGHTLY_TAG_RE@'
 
 PRINT_VERBOSE=0
 PRINT_QUIET=0
 WITH_TOOLCHAIN=0
+NIGHTLY=0
+NIGHTLY_TAG=""
 DOWNLOAD_SOURCE="auto"
 
 DATA_ROOT=""
@@ -88,15 +96,31 @@ OPTIONS:
         --with-toolchain
             Install OSS CAD Suite, the ICS55 PDK, ecc-sizer, and kepler-formal
 
+        --nightly
+            Install the latest nightly toolchain bundle (ecc, ecc-sizer,
+            kepler-formal, ICS55 PDK) instead of the pinned stable ECC, and
+            repoint the ecc wrapper at it. Rerun without --nightly to switch
+            back to the stable install. With --with-toolchain, the stable OSS
+            CAD Suite is installed alongside.
+
+        --nightly-tag <tag>
+            Install a specific nightly tag (vX.Y.Z-nightly.YYYYMMDD[.N])
+            instead of resolving the latest one; skips the releases API
+            lookup. The CNB mirror keeps only the latest nightly, so with
+            --download-source cnb older tags fall back to GitHub.
+
         --download-source auto|github|cnb
             Select download source for mirrored assets (default: auto)
 
 ENVIRONMENT:
     ECC_WITH_TOOLCHAIN=0|1
+    ECC_NIGHTLY=0|1
+    ECC_NIGHTLY_TAG=vX.Y.Z-nightly.YYYYMMDD[.N]
     ECC_DOWNLOAD_SOURCE=auto|github|cnb
     ECC_INSTALL_DIR=/absolute/path/to/ecc-data
     ECC_GITHUB_BASE_URL=https://ghfast.top/https://github.com
-            Replace the https://github.com prefix of GitHub asset URLs.
+            Replace the https://github.com (and https://api.github.com)
+            prefix of GitHub asset and API URLs.
             CNB URLs are unchanged.
 EOF
 }
@@ -216,6 +240,13 @@ parse_args() {
         parse_bool_env ECC_WITH_TOOLCHAIN "$ECC_WITH_TOOLCHAIN"
         WITH_TOOLCHAIN="$ECC_WITH_TOOLCHAIN"
     fi
+    if [ -n "${ECC_NIGHTLY:-}" ]; then
+        parse_bool_env ECC_NIGHTLY "$ECC_NIGHTLY"
+        NIGHTLY="$ECC_NIGHTLY"
+    fi
+    if [ -n "${ECC_NIGHTLY_TAG:-}" ]; then
+        NIGHTLY_TAG="$ECC_NIGHTLY_TAG"
+    fi
     if [ -n "${ECC_DOWNLOAD_SOURCE:-}" ]; then
         DOWNLOAD_SOURCE="$ECC_DOWNLOAD_SOURCE"
     fi
@@ -236,6 +267,19 @@ parse_args() {
                 ;;
             --with-toolchain)
                 WITH_TOOLCHAIN=1
+                ;;
+            --nightly)
+                NIGHTLY=1
+                ;;
+            --nightly-tag)
+                if [ -z "${2:-}" ]; then
+                    err "--nightly-tag requires a value"
+                fi
+                NIGHTLY_TAG="$2"
+                shift
+                ;;
+            --nightly-tag=*)
+                NIGHTLY_TAG="${arg#--nightly-tag=}"
                 ;;
             --download-source)
                 if [ -z "${2:-}" ]; then
@@ -273,6 +317,12 @@ parse_args() {
             err "invalid --download-source $DOWNLOAD_SOURCE (expected auto, github, or cnb)"
             ;;
     esac
+    if [ -n "$NIGHTLY_TAG" ]; then
+        NIGHTLY=1
+        if ! printf '%s\n' "$NIGHTLY_TAG" | grep -qE "^${NIGHTLY_TAG_RE}$"; then
+            err "invalid --nightly-tag $NIGHTLY_TAG (expected vX.Y.Z-nightly.YYYYMMDD[.N])"
+        fi
+    fi
 }
 
 need_base_cmds() {
@@ -578,10 +628,17 @@ rewrite_github_url() {
     local _url="$1"
     local _base
     case "$_url" in
-        https://github.com/*)
+        https://github.com/*|https://api.github.com/*)
             if [ -n "${ECC_GITHUB_BASE_URL:-}" ]; then
                 _base="${ECC_GITHUB_BASE_URL%/}"
-                printf '%s\n' "${_base}${_url#https://github.com}"
+                case "$_url" in
+                    https://github.com/*)
+                        printf '%s\n' "${_base}${_url#https://github.com}"
+                        ;;
+                    *)
+                        printf '%s\n' "${_base}${_url#https://api.github.com}"
+                        ;;
+                esac
                 return 0
             fi
             ;;
@@ -636,6 +693,240 @@ download_ecc() {
     download_by_source "$ECC_SHA256" "$ECC_ASSET_NAME" "$ECC_GITHUB_URL" "$ECC_CNB_URL"
 }
 
+# Resolve the nightly tag to install: the pinned --nightly-tag when given
+# (no API call), else the newest dated nightly from the releases API. The
+# response is one compact JSON line; grep -o extracts every tag_name value
+# (a body could mention the literal field name, but only release authors can
+# put it there and a bogus value would 404 the download later). Selection
+# follows the tag's own SemVer (base triple, date, same-day .N suffix), not
+# API creation order.
+resolve_nightly_tag() {
+    local _url
+    local _tmp
+    local _tags
+    if [ -n "$NIGHTLY_TAG" ]; then
+        printf '%s\n' "$NIGHTLY_TAG"
+        return 0
+    fi
+    _url="$(rewrite_github_url "${NIGHTLY_API_URL}?per_page=20")"
+    _tmp="$(mktemp "${CACHE_DOWNLOADS}/nightly-releases.XXXXXX")"
+    PARTIAL_FILE="$_tmp"
+    say_verbose "resolving the latest nightly tag from $_url"
+    if ! curl_fetch "$_url" "$_tmp"; then
+        rm -f "$_tmp"
+        PARTIAL_FILE=""
+        return 1
+    fi
+    PARTIAL_FILE=""
+    _tags="$(grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' "$_tmp" | sed 's/^.*"tag_name"[[:space:]]*:[[:space:]]*"//; s/"$//' | grep -E "^${NIGHTLY_TAG_RE}$" || true)"
+    rm -f "$_tmp"
+    if [ -z "$_tags" ]; then
+        return 1
+    fi
+    # Fixed-width zero-padded key, so a lexicographic max is the SemVer max.
+    # The regex already guarantees v<A>.<B>.<C>-nightly.<D8>[.N] shapes.
+    printf '%s\n' "$_tags" | awk '
+        {
+            line = $0
+            s = substr($0, 2)
+            split(s, a, "-nightly.")
+            split(a[1], b, ".")
+            split(a[2], d, ".")
+            n = (2 in d) ? d[2] : 0
+            key = sprintf("%010d%010d%010d%010d%010d", b[1], b[2], b[3], d[1], n)
+            if (NR == 1 || key > best) {
+                best = key
+                tag = line
+            }
+        }
+        END { if (NR > 0) print tag }
+    '
+}
+
+# Download the bundle's .sha256 sidecar and print the checksum. The sidecar
+# comes from the same release as the bundle, so this is integrity, not
+# authenticity -- there is no pinned checksum for the rolling nightly.
+fetch_nightly_sidecar() {
+    local _tag="$1"
+    local _name="${NIGHTLY_BUNDLE_NAME}.tar.gz.sha256"
+    local _gh
+    local _cnb="${NIGHTLY_CNB_URL}/${_tag}/${_name}"
+    local _tmp
+    local _ok=1
+    local _sha
+    _gh="$(rewrite_github_url "${NIGHTLY_GITHUB_URL}/${_tag}/${_name}")"
+    _tmp="$(mktemp "${CACHE_DOWNLOADS}/nightly-sidecar.XXXXXX")"
+    PARTIAL_FILE="$_tmp"
+    case "$DOWNLOAD_SOURCE" in
+        auto)
+            if curl_fetch "$_gh" "$_tmp"; then
+                _ok=0
+            elif curl_fetch "$_cnb" "$_tmp"; then
+                _ok=0
+            fi
+            ;;
+        github)
+            if curl_fetch "$_gh" "$_tmp"; then
+                _ok=0
+            fi
+            ;;
+        cnb)
+            # The CNB mirror keeps only the latest nightly; older tags fall
+            # back to GitHub (mirrors are byte-identical, so the checksum is
+            # the same either way).
+            if curl_fetch "$_cnb" "$_tmp"; then
+                _ok=0
+            elif curl_fetch "$_gh" "$_tmp"; then
+                _ok=0
+            fi
+            ;;
+    esac
+    if [ "$_ok" -ne 0 ]; then
+        rm -f "$_tmp"
+        PARTIAL_FILE=""
+        return 1
+    fi
+    _sha="$(awk '{ print $1; exit }' "$_tmp")"
+    rm -f "$_tmp"
+    PARTIAL_FILE=""
+    if ! printf '%s\n' "$_sha" | grep -qE '^[0-9a-f]{64}$'; then
+        warn "invalid sha256 in ${_name}"
+        return 1
+    fi
+    printf '%s\n' "$_sha"
+}
+
+# Like download_by_source, but cnb mode falls back to GitHub: the CNB mirror
+# keeps only the latest nightly, so a pinned older tag is GitHub-only. The
+# assets are byte-identical across sources, so the same sidecar sha applies.
+download_nightly_asset() {
+    local _sha="$1"
+    local _name="$2"
+    local _gh="$3"
+    local _cnb="$4"
+    case "$DOWNLOAD_SOURCE" in
+        auto)
+            download_verified "$_sha" "$_name" "$_gh" "$_cnb"
+            ;;
+        github)
+            download_verified "$_sha" "$_name" "$_gh"
+            ;;
+        cnb)
+            if try_download_verified "$_sha" "$_name" "$_cnb"; then
+                return 0
+            fi
+            say "no CNB copy of $_name; downloading from GitHub"
+            download_verified "$_sha" "$_name" "$_gh"
+            ;;
+    esac
+}
+
+download_nightly_bundle() {
+    local _tag="$1"
+    local _name="${NIGHTLY_BUNDLE_NAME}.tar.gz"
+    local _sha
+    local _gh
+    local _cnb="${NIGHTLY_CNB_URL}/${_tag}/${_name}"
+    if ! _sha="$(fetch_nightly_sidecar "$_tag")"; then
+        return 1
+    fi
+    _gh="$(rewrite_github_url "${NIGHTLY_GITHUB_URL}/${_tag}/${_name}")"
+    download_nightly_asset "$_sha" "$_name" "$_gh" "$_cnb"
+}
+
+# Parse the strict-subset TOML of ecos-manifest.toml (scalars and single-line
+# string arrays, as rendered by nix/modules/nightly.nix) into the N_*
+# variables. Arrays come out one element per line and are accumulated with
+# newline separators: manifest values cannot contain newlines (the awk
+# grammar is line-based), so this preserves elements containing spaces.
+# Unparseable lines and missing required fields return 1; unknown keys are
+# ignored so newer manifests stay installable by older scripts.
+nightly_manifest_vars() {
+    local _file="$1"
+    local _lines
+    local _l
+    if ! _lines="$(awk '
+        /^[[:space:]]*($|#)/ { next }
+        /^\[[A-Za-z0-9._-]+\][[:space:]]*$/ {
+            section = $0
+            sub(/^\[/, "", section)
+            sub(/\][[:space:]]*$/, "", section)
+            next
+        }
+        /^[A-Za-z_]+ = "[^"\\]*"[[:space:]]*$/ {
+            val = $0
+            sub(/^[^"]*"/, "", val)
+            sub(/"[[:space:]]*$/, "", val)
+            emit(section, $1, val, 0)
+            next
+        }
+        /^[A-Za-z_]+ = \[[[:space:]]*("[^"\\]*"[[:space:]]*,[[:space:]]*)*"[^"\\]*"[[:space:]]*\][[:space:]]*$/ {
+            rest = $0
+            while (match(rest, /"[^"\\]*"/)) {
+                emit(section, $1, substr(rest, RSTART + 1, RLENGTH - 2), 1)
+                rest = substr(rest, RSTART + RLENGTH)
+            }
+            next
+        }
+        {
+            printf "unrecognized manifest line %d\n", FNR > "/dev/stderr"
+            bad = 1
+            exit 1
+        }
+        function emit(section, key, val, isarr,   name) {
+            name = ""
+            if (section == "" && key == "tag" && !isarr) name = "tag"
+            else if (section == "tools.ecc" && key == "version" && !isarr) name = "ecc_version"
+            else if (section == "tools.ecc-sizer" && key == "version" && !isarr) name = "sizer_version"
+            else if (section == "pdk" && key == "tech_lef" && !isarr) name = "pdk_tech_lef"
+            else if (section == "pdk" && key == "cell_lefs" && isarr) name = "pdk_cell_lefs"
+            else if (section == "pdk" && key == "liberty_files" && isarr) name = "pdk_liberty_files"
+            if (name != "") printf "%s=%s\n", name, val
+        }
+    ' "$_file")"; then
+        return 1
+    fi
+    N_TAG=""
+    N_ECC_VERSION=""
+    N_SIZER_VERSION=""
+    N_PDK_TECH_LEF=""
+    N_PDK_CELL_LEFS=""
+    N_PDK_LIBERTY_FILES=""
+    while IFS= read -r _l; do
+        case "$_l" in
+            tag=*)
+                N_TAG="${_l#tag=}"
+                ;;
+            ecc_version=*)
+                N_ECC_VERSION="${_l#ecc_version=}"
+                ;;
+            sizer_version=*)
+                N_SIZER_VERSION="${_l#sizer_version=}"
+                ;;
+            pdk_tech_lef=*)
+                N_PDK_TECH_LEF="${_l#pdk_tech_lef=}"
+                ;;
+            pdk_cell_lefs=*)
+                N_PDK_CELL_LEFS="${N_PDK_CELL_LEFS}${N_PDK_CELL_LEFS:+
+}${_l#pdk_cell_lefs=}"
+                ;;
+            pdk_liberty_files=*)
+                N_PDK_LIBERTY_FILES="${N_PDK_LIBERTY_FILES}${N_PDK_LIBERTY_FILES:+
+}${_l#pdk_liberty_files=}"
+                ;;
+        esac
+    done <<EOF_MANIFEST
+$_lines
+EOF_MANIFEST
+    # tag is informational (the caller checks it against the request); the
+    # sizer version is only informational for nightlies too (the recorded
+    # version may differ from the binary's --version string).
+    if [ -z "$N_TAG" ] || [ -z "$N_PDK_TECH_LEF" ] || [ -z "$N_PDK_CELL_LEFS" ] || [ -z "$N_PDK_LIBERTY_FILES" ]; then
+        return 1
+    fi
+    return 0
+}
+
 acquire_lock() {
     if mkdir "$LOCK_DIR" 2>/dev/null; then
         LOCK_OWNED=1
@@ -648,8 +939,11 @@ new_staging() {
     if [ -n "${STAGING_DIR:-}" ] && [ -d "$STAGING_DIR" ]; then
         rm -rf "$STAGING_DIR"
     fi
-    STAGING_DIR="$(mktemp -d "${DATA_ROOT}/.ecc-staging.XXXXXX")"
-    printf '%s\n' "$STAGING_DIR"
+    # Must be called directly, not through command substitution: the cleanup
+    # trap keys off STAGING_DIR in the main shell.
+    if ! STAGING_DIR="$(mktemp -d "${DATA_ROOT}/.ecc-staging.XXXXXX")"; then
+        err "could not create a staging directory under ${DATA_ROOT}"
+    fi
 }
 
 clear_staging() {
@@ -831,6 +1125,7 @@ validate_oss_dir() {
 
 validate_sizer_dir() {
     local _dir="$1"
+    local _want_version="${2:-}"
     local _out
     local _path
     if [ ! -d "$_dir" ] || [ -L "$_dir" ]; then
@@ -849,8 +1144,13 @@ validate_sizer_dir() {
     if [ ! -x "$_dir/bin/Sizer" ] || [ ! -x "$_dir/libexec/Sizer" ]; then
         return 1
     fi
+    # The version assert is stable-channel only: a nightly's recorded version
+    # (<base>-nightly.<date>.g<sha>) may differ from the binary's own string.
+    if [ -z "$_want_version" ]; then
+        return 0
+    fi
     _out="$(run_without_loader_env "$_dir/bin/Sizer" --version 2>&1)"
-    printf '%s\n' "$_out" | awk -v want="v${SIZER_VERSION}" '
+    printf '%s\n' "$_out" | awk -v want="v${_want_version}" '
         {
             for (i = 1; i <= NF; i++) {
                 if ($i == want) {
@@ -886,10 +1186,13 @@ validate_kepler_dir() {
     return 0
 }
 
+# Validate a PDK tree: the tech LEF plus every relative file path fed on
+# stdin (cell LEFs and liberty files) must exist and be non-empty.
 validate_pdk_dir() {
     local _root="$1"
+    local _techlef="$2"
     local _rel
-    if [ ! -s "${_root}/${PDK_TECH_LEF}" ]; then
+    if [ ! -s "${_root}/${_techlef}" ]; then
         return 1
     fi
     while IFS= read -r _rel || [ -n "${_rel:-}" ]; do
@@ -897,18 +1200,16 @@ validate_pdk_dir() {
         if [ ! -s "${_root}/${_rel}" ]; then
             return 1
         fi
-    done <<'PDK_CELL_LEFS'
-@PDK_CELL_LEFS@
-PDK_CELL_LEFS
-    while IFS= read -r _rel || [ -n "${_rel:-}" ]; do
-        [ -n "$_rel" ] || continue
-        if [ ! -s "${_root}/${_rel}" ]; then
-            return 1
-        fi
-    done <<'PDK_LIBERTY_FILES'
-@PDK_LIBERTY_FILES@
-PDK_LIBERTY_FILES
+    done
     return 0
+}
+
+# The stable channel's pinned PDK file list.
+stable_pdk_file_list() {
+    cat <<'PDK_FILES'
+@PDK_CELL_LEFS@
+@PDK_LIBERTY_FILES@
+PDK_FILES
 }
 
 install_ecc_bundle() {
@@ -923,7 +1224,8 @@ install_ecc_bundle() {
         fi
         err "existing ECC directory ${_dest} is incomplete or failed validation; move it aside before reinstalling"
     fi
-    _staging="$(new_staging)"
+    new_staging
+    _staging="$STAGING_DIR"
     extract_archive "$_archive" "$_staging"
     if ! _root="$(find_ecc_root "$_staging")"; then
         err "ECC archive is missing the expected ecc and _internal layout"
@@ -954,7 +1256,8 @@ install_oss_cad() {
         fi
         err "existing OSS CAD Suite directory ${_dest} is invalid and will not be replaced in place"
     fi
-    _staging="$(new_staging)"
+    new_staging
+    _staging="$STAGING_DIR"
     extract_archive "$_archive" "$_staging"
     if ! _root="$(find_oss_root "$_staging")"; then
         err "OSS CAD Suite archive is missing bin/yosys"
@@ -979,19 +1282,20 @@ install_sizer() {
     local _staging
     local _root
     if [ -e "$_dest" ]; then
-        if [ -d "$_dest" ] && validate_sizer_dir "$_dest"; then
+        if [ -d "$_dest" ] && validate_sizer_dir "$_dest" "$SIZER_VERSION"; then
             say "reusing existing ecc-sizer ${SIZER_VERSION}"
             printf '%s\n' "$_dest"
             return 0
         fi
         err "existing ecc-sizer directory ${_dest} is invalid and will not be replaced in place"
     fi
-    _staging="$(new_staging)"
+    new_staging
+    _staging="$STAGING_DIR"
     extract_archive "$_archive" "$_staging"
     if ! _root="$(find_sizer_root "$_staging")"; then
         err "ecc-sizer archive is missing the expected bin/Sizer layout"
     fi
-    if ! validate_sizer_dir "$_root"; then
+    if ! validate_sizer_dir "$_root" "$SIZER_VERSION"; then
         err "ecc-sizer validation failed"
     fi
     if [ "$_root" = "$_staging" ]; then
@@ -1018,7 +1322,8 @@ install_kepler() {
         fi
         err "existing kepler-formal directory ${_dest} is invalid and will not be replaced in place"
     fi
-    _staging="$(new_staging)"
+    new_staging
+    _staging="$STAGING_DIR"
     extract_archive "$_archive" "$_staging"
     if ! _root="$(find_kepler_root "$_staging")"; then
         err "kepler-formal archive is missing the expected kepler-formal wrapper layout"
@@ -1035,6 +1340,119 @@ install_kepler() {
         clear_staging
     fi
     printf '%s\n' "$_dest"
+}
+
+# Validate an installed nightly tree against its own ecos-manifest.toml.
+validate_nightly_tree() {
+    local _dir="$1"
+    if [ ! -f "$_dir/ecos-manifest.toml" ]; then
+        return 1
+    fi
+    if ! nightly_manifest_vars "$_dir/ecos-manifest.toml"; then
+        return 1
+    fi
+    if ! validate_ecc_dir "$_dir/ecc"; then
+        return 1
+    fi
+    if ! validate_sizer_dir "$_dir/ecc-sizer"; then
+        return 1
+    fi
+    if ! validate_kepler_dir "$_dir/kepler-formal"; then
+        return 1
+    fi
+    printf '%s\n' "$N_PDK_CELL_LEFS" "$N_PDK_LIBERTY_FILES" | validate_pdk_dir "$_dir/pdk" "$N_PDK_TECH_LEF" || return 1
+    return 0
+}
+
+# Drop older nightly trees after a successful install: the newest 14 tags
+# stay downloadable from the release repository, so rollback is a reinstall.
+prune_old_nightlies() {
+    local _keep="$1"
+    local _dir
+    local _base
+    for _dir in "${DATA_ROOT}/nightly"/*; do
+        if [ ! -d "$_dir" ]; then
+            continue
+        fi
+        _base="${_dir##*/}"
+        if [ "$_base" = "$_keep" ]; then
+            continue
+        fi
+        if ! printf '%s\n' "$_base" | grep -qE "^${NIGHTLY_TAG_RE}$"; then
+            continue
+        fi
+        say "removing old nightly ${_base}"
+        rm -rf "$_dir"
+    done
+}
+
+install_nightly_bundle() {
+    local _archive="$1"
+    local _tag="$2"
+    local _dest="${DATA_ROOT}/nightly/${_tag}"
+    local _staging
+    local _root
+    local _cand
+    local _assembled
+    if [ -e "$_dest" ]; then
+        if [ -d "$_dest" ] && validate_nightly_tree "$_dest"; then
+            say "reusing existing nightly ${_tag}"
+            return 0
+        fi
+        err "existing nightly directory ${_dest} is incomplete or failed validation; move it aside before reinstalling"
+    fi
+    new_staging
+    _staging="$STAGING_DIR"
+    extract_archive "$_archive" "$_staging"
+    # The bundle root carries ecos-manifest.toml; tolerate one wrapping
+    # directory level, like the stable find_*_root helpers.
+    if [ -f "$_staging/ecos-manifest.toml" ]; then
+        _root="$_staging"
+    else
+        _root=""
+        for _cand in "$_staging"/*; do
+            if [ -f "$_cand/ecos-manifest.toml" ]; then
+                _root="$_cand"
+                break
+            fi
+        done
+        if [ -z "$_root" ]; then
+            err "nightly bundle has no ecos-manifest.toml; nightlies published before the manifest was introduced are not supported, pick a newer tag"
+        fi
+    fi
+    if ! nightly_manifest_vars "$_root/ecos-manifest.toml"; then
+        err "nightly bundle manifest ${_root}/ecos-manifest.toml is malformed"
+    fi
+    if [ "$N_TAG" != "$_tag" ]; then
+        err "nightly manifest tag ${N_TAG} does not match the requested ${_tag}"
+    fi
+    if ! validate_ecc_dir "$_root/ecc"; then
+        err "ECC smoke tests failed for the nightly bundle"
+    fi
+    if ! validate_sizer_dir "$_root/ecc-sizer"; then
+        err "ecc-sizer validation failed for the nightly bundle"
+    fi
+    if ! validate_kepler_dir "$_root/kepler-formal"; then
+        err "kepler-formal validation failed for the nightly bundle"
+    fi
+    if ! printf '%s\n' "$N_PDK_CELL_LEFS" "$N_PDK_LIBERTY_FILES" | validate_pdk_dir "$_root/pdk" "$N_PDK_TECH_LEF"; then
+        err "ICS55 PDK validation failed for the nightly bundle"
+    fi
+    # Assemble the complete tree before promoting: moving subtrees into the
+    # destination one by one would leave a half-installed tag behind on the
+    # first failure, and the reuse path refuses to replace invalid trees.
+    _assembled="${_staging}/.assembled"
+    ensure mkdir -p "$_assembled"
+    # Only the four toolchain subtrees are promoted; the studio AppImage and
+    # any other bundle content is discarded with the staging directory.
+    ensure mv "$_root/ecc" "$_assembled/ecc"
+    ensure mv "$_root/ecc-sizer" "$_assembled/ecc-sizer"
+    ensure mv "$_root/kepler-formal" "$_assembled/kepler-formal"
+    ensure mv "$_root/pdk" "$_assembled/pdk"
+    ensure cp "$_root/ecos-manifest.toml" "$_assembled/ecos-manifest.toml"
+    promote_dir "$_assembled" "$_dest"
+    rm -rf "$_staging"
+    clear_staging
 }
 
 prefetch_pdk_supplementals() {
@@ -1077,20 +1495,21 @@ install_pdk() {
     local _staging
     local _root
     if [ -e "$_dest" ]; then
-        if [ -d "$_dest" ] && validate_pdk_dir "$_dest"; then
+        if [ -d "$_dest" ] && stable_pdk_file_list | validate_pdk_dir "$_dest" "$PDK_TECH_LEF"; then
             say "reusing existing ICS55 PDK ${PDK_VERSION}"
             printf '%s\n' "$_dest"
             return 0
         fi
         err "existing ICS55 PDK directory ${_dest} is invalid and will not be replaced in place"
     fi
-    _staging="$(new_staging)"
+    new_staging
+    _staging="$STAGING_DIR"
     extract_archive "$_archive" "$_staging"
     if ! _root="$(find_pdk_root "$_staging")"; then
         err "ICS55 PDK base archive is missing the expected prtech layout"
     fi
     extract_pdk_supplementals "$_root"
-    if ! validate_pdk_dir "$_root"; then
+    if ! stable_pdk_file_list | validate_pdk_dir "$_root" "$PDK_TECH_LEF"; then
         err "ICS55 PDK validation failed"
     fi
     if [ "$_root" = "$_staging" ]; then
@@ -1109,7 +1528,7 @@ select_existing_toolchain() {
     local _pdk="${DATA_ROOT}/pdks/${PDK_NAME}/${PDK_VERSION}"
     local _sizer="${DATA_ROOT}/tools/ecc-sizer/${SIZER_VERSION}"
     local _kepler="${DATA_ROOT}/tools/kepler-formal/${KEPLER_VERSION}"
-    if [ -d "$_oss" ] && [ -d "$_pdk" ] && [ -d "$_sizer" ] && validate_oss_dir "$_oss" && validate_pdk_dir "$_pdk" && validate_sizer_dir "$_sizer"; then
+    if [ -d "$_oss" ] && [ -d "$_pdk" ] && [ -d "$_sizer" ] && validate_oss_dir "$_oss" && stable_pdk_file_list | validate_pdk_dir "$_pdk" "$PDK_TECH_LEF" && validate_sizer_dir "$_sizer" "$SIZER_VERSION"; then
         OSS_ROOT="$_oss"
         PDK_ROOT="$_pdk"
         SIZER_ROOT="$_sizer"
@@ -1129,11 +1548,26 @@ select_existing_toolchain() {
     return 1
 }
 
+# The OSS CAD Suite half of select_existing_toolchain, for --nightly: the
+# nightly bundle carries the PDK/sizer/kepler trees but not OSS CAD Suite,
+# which can only come from a stable-channel install.
+select_existing_oss() {
+    local _oss="${DATA_ROOT}/tools/oss-cad-suite/${OSS_CAD_VERSION}"
+    if [ -d "$_oss" ] && validate_oss_dir "$_oss"; then
+        OSS_ROOT="$_oss"
+        return 0
+    fi
+    OSS_ROOT=""
+    return 1
+}
+
 write_wrapper() {
-    local _oss_root="$1"
-    local _pdk_root="$2"
-    local _sizer_root="$3"
-    local _kepler_root="$4"
+    local _version="$1"
+    local _exec_rel="$2"
+    local _oss_root="$3"
+    local _pdk_root="$4"
+    local _sizer_root="$5"
+    local _kepler_root="$6"
     local _tmp
     local _dest="${BIN_DIR}/ecc"
     _tmp="$(mktemp "${BIN_DIR}/ecc.XXXXXX")"
@@ -1141,9 +1575,11 @@ write_wrapper() {
         printf '%s\n' '#!/bin/sh'
         printf '%s\n' "$WRAPPER_MARKER"
         printf 'ECC_DATA_ROOT=%s\n' "$(shell_quote "$DATA_ROOT")"
-        printf 'ECC_VERSION=%s\n' "$(shell_quote "$ECC_TAG")"
-        if [ -n "$_oss_root" ] && [ -n "$_pdk_root" ]; then
+        printf 'ECC_VERSION=%s\n' "$(shell_quote "$_version")"
+        if [ -n "$_oss_root" ]; then
             printf 'export CHIPCOMPILER_OSS_CAD_DIR=%s\n' "$(shell_quote "$_oss_root")"
+        fi
+        if [ -n "$_pdk_root" ]; then
             printf 'export CHIPCOMPILER_ICS55_PDK_ROOT=%s\n' "$(shell_quote "$_pdk_root")"
         fi
         if [ -n "$_sizer_root" ]; then
@@ -1154,7 +1590,7 @@ write_wrapper() {
             printf 'export CHIPCOMPILER_KEPLER_FORMAL_ROOT=%s\n' "$(shell_quote "$_kepler_root")"
             printf 'export PATH=%s:"$PATH"\n' "$(shell_quote "$_kepler_root")"
         fi
-        printf '%s\n' 'exec "$ECC_DATA_ROOT/$ECC_VERSION/ecc" "$@"'
+        printf 'exec "$ECC_DATA_ROOT"/%s "$@"\n' "$(shell_quote "$_exec_rel")"
     } > "$_tmp"
     ensure chmod u+x "$_tmp"
     if ! sh -n "$_tmp"; then
@@ -1165,10 +1601,11 @@ write_wrapper() {
 }
 
 write_receipt() {
+    local _version="$1"
     local _tmp
     local _dest="${CONFIG_ROOT}/ecc-receipt.json"
     _tmp="${CONFIG_ROOT}/ecc-receipt.json.tmp.$$"
-    if ! printf '%s\n' "{\"binaries\":[\"ecc\"],\"data_root\":\"$(json_escape "$DATA_ROOT")\",\"install_prefix\":\"$(json_escape "$BIN_DIR")\",\"provider\":{\"format\":1,\"name\":\"ecos-release\"},\"version\":\"$(json_escape "$ECC_VERSION")\"}" > "$_tmp"; then
+    if ! printf '%s\n' "{\"binaries\":[\"ecc\"],\"data_root\":\"$(json_escape "$DATA_ROOT")\",\"install_prefix\":\"$(json_escape "$BIN_DIR")\",\"provider\":{\"format\":1,\"name\":\"ecos-release\"},\"version\":\"$(json_escape "$_version")\"}" > "$_tmp"; then
         rm -f "$_tmp"
         warn "failed to write install receipt at ${_dest}"
         return 0
@@ -1211,48 +1648,87 @@ main() {
     detect_platform
     resolve_roots
     check_wrapper_collision
-    if [ "$WITH_TOOLCHAIN" = 1 ]; then
+    if [ "$WITH_TOOLCHAIN" = 1 ] && [ "$NIGHTLY" = 0 ]; then
         need_cmd bzip2
     fi
 
-    ECC_ARCHIVE="$(download_ecc)"
+    ECC_ARCHIVE=""
+    NIGHTLY_ARCHIVE=""
     OSS_ARCHIVE=""
     SIZER_ARCHIVE=""
     KEPLER_ARCHIVE=""
     PDK_ARCHIVE=""
-    if [ "$WITH_TOOLCHAIN" = 1 ]; then
-        OSS_ARCHIVE="$(download_by_source "$OSS_CAD_SHA256" "$OSS_CAD_ASSET_NAME" "$OSS_CAD_URL" "$OSS_CAD_CNB_URL")"
-        SIZER_ARCHIVE="$(download_by_source "$SIZER_SHA256" "$SIZER_ASSET_NAME" "$SIZER_URL" "$SIZER_CNB_URL" "$SIZER_CNB_SHA256")"
-        KEPLER_ARCHIVE="$(download_by_source "$KEPLER_SHA256" "$KEPLER_ASSET_NAME" "$KEPLER_URL" "$KEPLER_CNB_URL")"
-        PDK_ARCHIVE="$(download_by_source "$PDK_BASE_SHA256" "$PDK_BASE_ASSET_NAME" "$PDK_BASE_URL" "$PDK_BASE_CNB_URL" "$PDK_BASE_CNB_SHA256")"
-        prefetch_pdk_supplementals
+    if [ "$NIGHTLY" = 1 ]; then
+        if ! NIGHTLY_TAG="$(resolve_nightly_tag)"; then
+            err "could not resolve the latest nightly tag; pass --nightly-tag <tag> to skip the releases API lookup"
+        fi
+        say "installing nightly ${NIGHTLY_TAG}"
+        if ! NIGHTLY_ARCHIVE="$(download_nightly_bundle "$NIGHTLY_TAG")"; then
+            err "failed to download the nightly bundle for ${NIGHTLY_TAG}"
+        fi
+        # The nightly bundle carries its own PDK/sizer/kepler trees; only
+        # OSS CAD Suite still comes from the stable channel.
+        if [ "$WITH_TOOLCHAIN" = 1 ]; then
+            OSS_ARCHIVE="$(download_by_source "$OSS_CAD_SHA256" "$OSS_CAD_ASSET_NAME" "$OSS_CAD_URL" "$OSS_CAD_CNB_URL")"
+        fi
+    else
+        ECC_ARCHIVE="$(download_ecc)"
+        if [ "$WITH_TOOLCHAIN" = 1 ]; then
+            OSS_ARCHIVE="$(download_by_source "$OSS_CAD_SHA256" "$OSS_CAD_ASSET_NAME" "$OSS_CAD_URL" "$OSS_CAD_CNB_URL")"
+            SIZER_ARCHIVE="$(download_by_source "$SIZER_SHA256" "$SIZER_ASSET_NAME" "$SIZER_URL" "$SIZER_CNB_URL" "$SIZER_CNB_SHA256")"
+            KEPLER_ARCHIVE="$(download_by_source "$KEPLER_SHA256" "$KEPLER_ASSET_NAME" "$KEPLER_URL" "$KEPLER_CNB_URL")"
+            PDK_ARCHIVE="$(download_by_source "$PDK_BASE_SHA256" "$PDK_BASE_ASSET_NAME" "$PDK_BASE_URL" "$PDK_BASE_CNB_URL" "$PDK_BASE_CNB_SHA256")"
+            prefetch_pdk_supplementals
+        fi
     fi
 
     acquire_lock
     check_wrapper_collision
-    install_ecc_bundle "$ECC_ARCHIVE"
 
     OSS_ROOT=""
     PDK_ROOT=""
     SIZER_ROOT=""
     KEPLER_ROOT=""
-    if [ "$WITH_TOOLCHAIN" = 1 ]; then
-        OSS_ROOT="$(install_oss_cad "$OSS_ARCHIVE")"
-        PDK_ROOT="$(install_pdk "$PDK_ARCHIVE")"
-        SIZER_ROOT="$(install_sizer "$SIZER_ARCHIVE")"
-        KEPLER_ROOT="$(install_kepler "$KEPLER_ARCHIVE")"
-        if [ -z "$OSS_ROOT" ] || [ -z "$PDK_ROOT" ] || [ -z "$SIZER_ROOT" ] || [ -z "$KEPLER_ROOT" ]; then
-            err "toolchain installation failed"
+    if [ "$NIGHTLY" = 1 ]; then
+        install_nightly_bundle "$NIGHTLY_ARCHIVE" "$NIGHTLY_TAG"
+        if [ "$WITH_TOOLCHAIN" = 1 ]; then
+            OSS_ROOT="$(install_oss_cad "$OSS_ARCHIVE")"
+            if [ -z "$OSS_ROOT" ]; then
+                err "OSS CAD Suite installation failed"
+            fi
+        elif select_existing_oss; then
+            say "existing OSS CAD Suite ${OSS_CAD_VERSION} will be exported by the wrapper"
+        else
+            say "no managed OSS CAD Suite found; the wrapper will not export CHIPCOMPILER_OSS_CAD_DIR (rerun with --with-toolchain to install it)"
         fi
-    elif select_existing_toolchain; then
-        say "existing managed toolchain will be exported by the wrapper"
+        PDK_ROOT="${DATA_ROOT}/nightly/${NIGHTLY_TAG}/pdk"
+        SIZER_ROOT="${DATA_ROOT}/nightly/${NIGHTLY_TAG}/ecc-sizer"
+        KEPLER_ROOT="${DATA_ROOT}/nightly/${NIGHTLY_TAG}/kepler-formal"
+        write_wrapper "$NIGHTLY_TAG" "nightly/${NIGHTLY_TAG}/ecc/ecc" "$OSS_ROOT" "$PDK_ROOT" "$SIZER_ROOT" "$KEPLER_ROOT"
+        write_receipt "$NIGHTLY_TAG"
+        # Prune only after the wrapper points at the new tree: failing earlier
+        # steps must not strand the wrapper on a deleted nightly.
+        prune_old_nightlies "$NIGHTLY_TAG"
+        say "installed ECC nightly ${NIGHTLY_TAG} to ${DATA_ROOT}/nightly/${NIGHTLY_TAG}"
     else
-        say "ECC was installed without the managed toolchain"
+        install_ecc_bundle "$ECC_ARCHIVE"
+        if [ "$WITH_TOOLCHAIN" = 1 ]; then
+            OSS_ROOT="$(install_oss_cad "$OSS_ARCHIVE")"
+            PDK_ROOT="$(install_pdk "$PDK_ARCHIVE")"
+            SIZER_ROOT="$(install_sizer "$SIZER_ARCHIVE")"
+            KEPLER_ROOT="$(install_kepler "$KEPLER_ARCHIVE")"
+            if [ -z "$OSS_ROOT" ] || [ -z "$PDK_ROOT" ] || [ -z "$SIZER_ROOT" ] || [ -z "$KEPLER_ROOT" ]; then
+                err "toolchain installation failed"
+            fi
+        elif select_existing_toolchain; then
+            say "existing managed toolchain will be exported by the wrapper"
+        else
+            say "ECC was installed without the managed toolchain"
+        fi
+        write_wrapper "$ECC_TAG" "${ECC_TAG}/ecc" "$OSS_ROOT" "$PDK_ROOT" "$SIZER_ROOT" "$KEPLER_ROOT"
+        write_receipt "$ECC_VERSION"
+        say "installed ECC ${ECC_VERSION} to ${DATA_ROOT}/${ECC_TAG}"
     fi
-
-    write_wrapper "$OSS_ROOT" "$PDK_ROOT" "$SIZER_ROOT" "$KEPLER_ROOT"
-    write_receipt
-    say "installed ECC ${ECC_VERSION} to ${DATA_ROOT}/${ECC_TAG}"
     print_path_guidance
 }
 
