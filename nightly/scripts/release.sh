@@ -51,6 +51,7 @@ nightly_recipe_release() (
 
   if [ ${#fresh_tools[@]} -eq 0 ]; then
     nightly_log "all tools unchanged since ${latest_tag}; no nightly today"
+    nightly_recipe_latest
     exit 0
   fi
 
@@ -191,6 +192,8 @@ EOF
     "${assets[@]}" || local_rc=$?
   [ "$local_rc" -eq 0 ] || nightly_die "gh release create ${tag} failed (exit ${local_rc})"
   nightly_log "release: published ${tag}"
+
+  nightly_recipe_latest "$tag" "$NIGHTLY_ASSETS_DIR"
 
   # Retention: keep the newest NIGHTLY_KEEP dated nightlies (by tag version,
   # not API creation order).

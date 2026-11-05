@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tool:
-        description: Which tool to build (the release always carries every tool)
+        description: Tool to build, or latest to sync the rolling download without rebuilding
         required: true
         type: choice
         options:
@@ -16,6 +16,7 @@ on:
           - kepler-formal
           - ecos-studio
           - pdk
+          - latest
       force:
         description: Build even when the latest nightly already covers HEAD
         required: false
@@ -51,6 +52,7 @@ jobs:
       # Pin the Rust toolchain for the studio chip-viewer build; the
       # runner's preinstalled Rust drifts with the image.
       - name: Setup Rust
+        if: inputs.tool != 'latest'
         uses: dtolnay/rust-toolchain@stable
       - name: Prepare asset staging
         # runner.temp is only available in step contexts, and $GITHUB_ENV
