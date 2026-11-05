@@ -11,21 +11,23 @@ export LC_ALL=C
 
 nightly_usage() {
   cat >&2 <<'EOF'
-usage: nightly-build <all|ecc|ecc-sizer|kepler-formal|ecos-studio|pdk|release>
+usage: nightly-build <all|ecc|ecc-sizer|kepler-formal|ecos-studio|pdk|release|latest>
 
 Build the given tools and publish one dated nightly prerelease
-(v<base>-nightly.<yyyymmdd>[.N]) on this repository carrying a single
-combined ecos-nightly bundle (per-tool content under ecc/, ecc-sizer/,
-kepler-formal/, pdk/, studio/ subdirectories). A tool is skipped when the
+(v<base>-nightly.<yyyymmdd>[.N]) on this repository carrying a CLI bundle
+and a full ecos-nightly bundle (ecc/, ecc-sizer/, kepler-formal/, pdk/,
+plus studio/ in the full bundle). A tool is skipped when the
 latest nightly already covers it with an unchanged recipe — its content is
 carried forward from the previous bundle — and when nothing moved, no
-release is created. `release` alone re-runs only the publish stage.
+dated release is created. The rolling latest prerelease mirrors the newest
+dated release. `release` alone re-runs only the publish stage; `latest`
+syncs the rolling download without building any tools.
 
 environment:
   GH_TOKEN              required; the workflow's GITHUB_TOKEN (contents:write
                         on this repository)
-  NIGHTLY_ASSETS_DIR    required; absolute path of the run's asset staging
-                        directory
+  NIGHTLY_ASSETS_DIR    required for builds and release; absolute path of the
+                        run's asset staging directory (not needed for latest)
   NIGHTLY_READ_TOKEN    required by the ecc and ecc-sizer recipes; read-only
                         token with Actions:read on ecc (nightly CI gate +
                         CI artifacts) and ecc-sizer (CI artifacts)
@@ -47,7 +49,7 @@ case "$nightly_target" in
   nightly_usage
   exit 0
   ;;
-all | ecc | ecc-sizer | kepler-formal | ecos-studio | pdk | release) ;;
+all | ecc | ecc-sizer | kepler-formal | ecos-studio | pdk | release | latest) ;;
 *)
   nightly_usage
   exit 1
@@ -106,5 +108,8 @@ pdk)
   ;;
 release)
   nightly_recipe_release
+  ;;
+latest)
+  nightly_recipe_latest
   ;;
 esac

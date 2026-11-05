@@ -6,10 +6,10 @@
 # nightly/dispatch.sh into the nightly-build app. Nothing here is executed
 # standalone.
 #
-# The nightly product is one dated prerelease per day on THIS repository
-# (oss-cad-suite-build style): per-tool tarballs for the installer/registry
-# consumption shape, a combined ecos-nightly bundle tarball for humans, and
-# the ecos-studio AppImage. Published tags are never overwritten.
+# The nightly product is one dated prerelease per day on this repository,
+# carrying a CLI bundle and a full toolchain bundle with the Studio AppImage.
+# Dated tags are never overwritten; the rolling latest prerelease mirrors
+# the newest dated release.
 #
 # Required environment:
 #   GH_TOKEN              the workflow's GITHUB_TOKEN (contents:write on this

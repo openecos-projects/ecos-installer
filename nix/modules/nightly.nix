@@ -145,6 +145,7 @@
           ${builtins.readFile ../../nightly/scripts/kepler-formal.sh}
           ${builtins.readFile ../../nightly/scripts/pdk.sh}
           ${builtins.readFile ../../nightly/scripts/ecos-studio.sh}
+          ${builtins.readFile ../../nightly/scripts/latest.sh}
           ${builtins.readFile ../../nightly/scripts/release.sh}
           ${builtins.readFile ../../nightly/dispatch.sh}
         '';
@@ -155,6 +156,23 @@
         type = "app";
         program = "${nightlyBuild}/bin/nightly-build";
       };
+
+      checks.nightly-latest =
+        pkgs.runCommand "ecos-release-nightly-latest-check"
+          {
+            nativeBuildInputs = [
+              pkgs.bash
+              pkgs.coreutils
+              pkgs.gnugrep
+              pkgs.gnused
+              pkgs.jq
+              pkgs.python3
+            ];
+          }
+          ''
+            python3 ${../tests/nightly-latest.py} ${../../nightly}
+            echo ok > "$out"
+          '';
 
       # writeShellApplication shellchecks the concatenated app; this check
       # lints each source file in isolation so failures point at a file.
