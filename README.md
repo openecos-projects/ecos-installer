@@ -37,6 +37,10 @@ CNB URLs are not rewritten. Direct OSS URLs skip Cloudflare and are not counted 
 
 Data lands in `$XDG_DATA_HOME/ecc` (or `~/.local/share/ecc`). The wrapper goes to `$XDG_BIN_HOME` or `~/.local/bin`. `ECC_INSTALL_DIR` overrides the data root and must be an absolute path.
 
+The installer also enables shell completion for the login shell reported by
+`$SHELL` (`bash`, `zsh`, or `fish`) by running `ecc --install-completion`.
+Pass `--no-completion` to skip it, or run `ecc --install-completion` later.
+
 ## Generate and publish
 
 Rules (metadata, version sources, templates) live in `nix/toolchain.toml`; the resolved version/url/sha256/size pins live in `nix/_sources/generated.json` (nvfetcher lock format, see `nix/patches/nvfetcher-lock-fields.md`). The installer source is `templates/ecc-installer.sh.in`.
