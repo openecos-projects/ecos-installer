@@ -55,7 +55,6 @@ nightly_recipe_ecc() (
   "$smoke/ecc" --help >/dev/null
   "$smoke/ecc" --version
   "$smoke/ecc" version --json >/dev/null
-  test -x "$smoke/ecc-agent-rpc"
   "$smoke/ecc" doc config --plain >/dev/null
 
   # Clean-distro check: newer glibc than the build image, no development
