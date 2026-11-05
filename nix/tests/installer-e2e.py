@@ -162,6 +162,13 @@ if [ "$1" = "version" ] && [ "${{2:-}}" = "--json" ]; then
   echo '{{"schema_version":1,"runtime":"ECC CLI","ecc":"{version}"}}'
   exit {status}
 fi
+if [ "$1" = "--install-completion" ]; then
+  if [ -n "${{ECC_TEST_COMPLETION_LOG:-}}" ]; then
+    printf 'shell=%s\\n' "${{SHELL:-}}" >> "$ECC_TEST_COMPLETION_LOG"
+    printf 'parent=%s\\n' "$(cat "/proc/$PPID/comm" 2>/dev/null || printf unknown)" >> "$ECC_TEST_COMPLETION_LOG"
+  fi
+  exit "${{ECC_TEST_COMPLETION_EXIT:-0}}"
+fi
 if [ "$1" = "dump-env" ]; then
   printf 'OSS=%s\\n' "${{CHIPCOMPILER_OSS_CAD_DIR-}}"
   printf 'PDK=%s\\n' "${{CHIPCOMPILER_ICS55_PDK_ROOT-}}"
@@ -630,7 +637,7 @@ def write_installer(text: str, path: Path) -> Path:
     return path
 
 
-def xdg_env(root: Path, *, extra_path: str = "") -> dict[str, str]:
+def xdg_env(root: Path, *, extra_path: str = "", shell: str = "/bin/sh") -> dict[str, str]:
     home = root / "home"
     data = root / "data"
     bindir = root / "bin"
@@ -650,12 +657,15 @@ def xdg_env(root: Path, *, extra_path: str = "") -> dict[str, str]:
             "XDG_CACHE_HOME": str(cache),
             "XDG_CONFIG_HOME": str(config),
             "PATH": path_value,
-            "SHELL": env.get("SHELL", "/bin/sh"),
+            "SHELL": shell,
         }
     )
     env.pop("ECC_WITH_TOOLCHAIN", None)
     env.pop("ECC_DOWNLOAD_SOURCE", None)
     env.pop("ECC_INSTALL_DIR", None)
+    env.pop("ECC_INSTALL_COMPLETION", None)
+    env.pop("ECC_TEST_COMPLETION_LOG", None)
+    env.pop("ECC_TEST_COMPLETION_EXIT", None)
     return env
 
 
@@ -937,6 +947,89 @@ def test_path_guidance(h: Harness) -> None:
         fail(result.stderr)
     if profile.read_text() != "# keep\n":
         fail("profile mutated")
+
+
+def test_completion_installed(h: Harness) -> None:
+    bash = shutil.which("bash")
+    if bash is None:
+        fail("bash not found")
+    root = h.tmp()
+    log = root / "completion.log"
+    env = xdg_env(root, shell=bash)
+    env["ECC_TEST_COMPLETION_LOG"] = str(log)
+    result = run_installer(h.installer(root / "installer.sh"), env)
+    if result.returncode != 0:
+        fail(result.stderr)
+    if "installed ECC shell completion for bash" not in result.stderr:
+        fail(result.stderr)
+    if not log.is_file():
+        fail("completion installer was not invoked")
+    if "parent=bash" not in log.read_text().splitlines():
+        fail(log.read_text())
+
+
+def test_completion_skipped_for_unsupported_shell(h: Harness) -> None:
+    dash = shutil.which("dash") or "/bin/sh"
+    root = h.tmp()
+    log = root / "completion.log"
+    env = xdg_env(root, shell=dash)
+    env["ECC_TEST_COMPLETION_LOG"] = str(log)
+    result = run_installer(h.installer(root / "installer.sh"), env)
+    if result.returncode != 0:
+        fail(result.stderr)
+    if "Skipping ECC shell completion" not in result.stderr:
+        fail(result.stderr)
+    if log.exists():
+        fail("completion installer ran for an unsupported shell")
+
+
+def test_completion_opt_out(h: Harness) -> None:
+    bash = shutil.which("bash")
+    if bash is None:
+        fail("bash not found")
+    root = h.tmp()
+    log = root / "completion.log"
+    env = xdg_env(root, shell=bash)
+    env["ECC_TEST_COMPLETION_LOG"] = str(log)
+    result = run_installer(h.installer(root / "installer.sh"), env, "--no-completion")
+    if result.returncode != 0:
+        fail(result.stderr)
+    if log.exists():
+        fail("completion installer ran despite --no-completion")
+    if "installed ECC shell completion" in result.stderr:
+        fail(result.stderr)
+
+
+def test_completion_env_opt_out(h: Harness) -> None:
+    bash = shutil.which("bash")
+    if bash is None:
+        fail("bash not found")
+    root = h.tmp()
+    log = root / "completion.log"
+    env = xdg_env(root, shell=bash)
+    env["ECC_INSTALL_COMPLETION"] = "0"
+    env["ECC_TEST_COMPLETION_LOG"] = str(log)
+    result = run_installer(h.installer(root / "installer.sh"), env)
+    if result.returncode != 0:
+        fail(result.stderr)
+    if log.exists():
+        fail("completion installer ran despite ECC_INSTALL_COMPLETION=0")
+
+
+def test_completion_failure_keeps_install(h: Harness) -> None:
+    bash = shutil.which("bash")
+    if bash is None:
+        fail("bash not found")
+    root = h.tmp()
+    env = xdg_env(root, shell=bash)
+    env["ECC_TEST_COMPLETION_EXIT"] = "1"
+    result = run_installer(h.installer(root / "installer.sh"), env)
+    if result.returncode != 0:
+        fail(result.stderr)
+    if "could not install ECC shell completion for bash" not in result.stderr:
+        fail(result.stderr)
+    if not (roots(env)[1] / "ecc").is_file():
+        fail("wrapper missing after completion failure")
 
 
 def test_toolchain_wrapper(h: Harness) -> None:
@@ -1806,6 +1899,11 @@ CASES = [
     test_unsupported_platform,
     test_unsupported_bitness,
     test_path_guidance,
+    test_completion_installed,
+    test_completion_skipped_for_unsupported_shell,
+    test_completion_opt_out,
+    test_completion_env_opt_out,
+    test_completion_failure_keeps_install,
     test_toolchain_wrapper,
     test_ecc_only_upgrade_preserves_toolchain,
     test_failed_first_install,

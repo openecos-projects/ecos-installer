@@ -60,6 +60,7 @@ NIGHTLY_TAG_RE='@NIGHTLY_TAG_RE@'
 PRINT_VERBOSE=0
 PRINT_QUIET=0
 WITH_TOOLCHAIN=0
+INSTALL_COMPLETION=1
 NIGHTLY=0
 NIGHTLY_TAG=""
 DOWNLOAD_SOURCE="auto"
@@ -96,6 +97,9 @@ OPTIONS:
         --with-toolchain
             Install OSS CAD Suite, the ICS55 PDK, ecc-sizer, and kepler-formal
 
+        --no-completion
+            Do not install shell completion for the ecc command
+
         --nightly
             Install the latest nightly toolchain bundle (ecc, ecc-sizer,
             kepler-formal, ICS55 PDK) instead of the pinned stable ECC, and
@@ -114,6 +118,7 @@ OPTIONS:
 
 ENVIRONMENT:
     ECC_WITH_TOOLCHAIN=0|1
+    ECC_INSTALL_COMPLETION=0|1
     ECC_NIGHTLY=0|1
     ECC_NIGHTLY_TAG=vX.Y.Z-nightly.YYYYMMDD[.N]
     ECC_DOWNLOAD_SOURCE=auto|github|cnb
@@ -240,6 +245,10 @@ parse_args() {
         parse_bool_env ECC_WITH_TOOLCHAIN "$ECC_WITH_TOOLCHAIN"
         WITH_TOOLCHAIN="$ECC_WITH_TOOLCHAIN"
     fi
+    if [ -n "${ECC_INSTALL_COMPLETION:-}" ]; then
+        parse_bool_env ECC_INSTALL_COMPLETION "$ECC_INSTALL_COMPLETION"
+        INSTALL_COMPLETION="$ECC_INSTALL_COMPLETION"
+    fi
     if [ -n "${ECC_NIGHTLY:-}" ]; then
         parse_bool_env ECC_NIGHTLY "$ECC_NIGHTLY"
         NIGHTLY="$ECC_NIGHTLY"
@@ -267,6 +276,9 @@ parse_args() {
                 ;;
             --with-toolchain)
                 WITH_TOOLCHAIN=1
+                ;;
+            --no-completion)
+                INSTALL_COMPLETION=0
                 ;;
             --nightly)
                 NIGHTLY=1
@@ -1640,6 +1652,48 @@ print_path_guidance() {
     fi
 }
 
+install_shell_completion() {
+    local _ecc
+    local _shell_path
+    local _shell_name
+    local _completion_command
+    local _completion_output
+    if [ "$INSTALL_COMPLETION" = 0 ]; then
+        return 0
+    fi
+    _ecc="${BIN_DIR}/ecc"
+    if [ ! -x "$_ecc" ]; then
+        return 0
+    fi
+    _shell_path="${SHELL:-}"
+    if [ -z "$_shell_path" ] || [ ! -x "$_shell_path" ]; then
+        say "Skipping ECC shell completion: SHELL is not set to an executable path"
+        say "Enable it later with: ${_ecc} --install-completion"
+        return 0
+    fi
+    _shell_name="$(printf '%s\n' "$_shell_path" | sed 's,.*/,,')"
+    case "$_shell_name" in
+        bash|zsh|fish) ;;
+        *)
+            say "Skipping ECC shell completion for unsupported shell ${_shell_name}"
+            say "Enable it later with: ${_ecc} --install-completion"
+            return 0
+            ;;
+    esac
+    _completion_command="$(shell_quote "$_ecc") --install-completion && true"
+    if _completion_output="$("$_shell_path" -c "$_completion_command" 2>&1)"; then
+        say "installed ECC shell completion for ${_shell_name}"
+        if [ -n "$_completion_output" ]; then
+            say_verbose "$_completion_output"
+        fi
+    else
+        warn "could not install ECC shell completion for ${_shell_name}; run '${_ecc} --install-completion' manually"
+        if [ -n "$_completion_output" ]; then
+            say_verbose "$_completion_output"
+        fi
+    fi
+}
+
 main() {
     parse_args "$@"
     need_base_cmds
@@ -1730,6 +1784,7 @@ main() {
         say "installed ECC ${ECC_VERSION} to ${DATA_ROOT}/${ECC_TAG}"
     fi
     print_path_guidance
+    install_shell_completion
 }
 
 main "$@"
