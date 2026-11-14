@@ -289,7 +289,14 @@ let
             { cnbStripPrefix = requireRelative "${label}.cnb_strip_prefix" v; }
         )
         // {
-          url = requireSuffix "${label}.url" baseArchiveSuffixes common.url;
+          url =
+            if
+              builtins.match "https://api\\.github\\.com/repos/openecos-projects/icsprout55-pdk-v2/tarball/[0-9a-f]{40}" common.url
+              != null
+            then
+              builtins.seq (requireSuffix "${label}.name" [ ".tar.gz" ] common.name) common.url
+            else
+              requireSuffix "${label}.url" baseArchiveSuffixes common.url;
         }
     else if
       builtins.elem kind [

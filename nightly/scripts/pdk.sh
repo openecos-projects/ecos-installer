@@ -7,8 +7,8 @@
 #
 # The package set and validation paths come from $NIGHTLY_PDK_MANIFEST, a
 # projection of toolchain.toml rendered by nix/modules/nightly.nix, so the
-# recipe never drifts from the lock-driven installer layout. All downloads
-# are public and anonymous.
+# recipe never drifts from the lock-driven installer layout. The base is
+# private and requires the dependency read token.
 
 # Extract with the installer's extract_archive semantics: no ownership or
 # permission preservation, and only regular files, dirs, and symlinks
@@ -30,6 +30,7 @@ nightly_recipe_pdk() (
   tool=pdk
   : "${NIGHTLY_ASSETS_DIR:?}"
   : "${NIGHTLY_PDK_MANIFEST:?}"
+  nightly_require_private_release
   workdir="$(mktemp -d)"
   # Cleanup is best-effort: a leftover workdir must not fail a green run.
   trap 'rm -rf "$workdir" 2>/dev/null || nightly_log "warning: could not clean $workdir"' EXIT
@@ -56,7 +57,7 @@ nightly_recipe_pdk() (
   # Base: git archive of the release tag, stripped to the root.
   base_url="$(nightly_pdk_interp "$(jq -r '.base.urlTemplate' "$NIGHTLY_PDK_MANIFEST")")"
   top_expected="$(nightly_pdk_interp "$(jq -r '.base.stripPrefix' "$NIGHTLY_PDK_MANIFEST")")"
-  curl -fsSL --retry 3 --retry-delay 5 "$base_url" -o "$workdir/base.tar.gz"
+  nightly_gh_deps api --hostname github.com "${base_url#https://api.github.com/}" >"$workdir/base.tar.gz"
   nightly_pdk_extract "$workdir/base.tar.gz" "$workdir/base-x"
   [ -d "$workdir/base-x/$top_expected" ] ||
     nightly_die "base archive top directory is not ${top_expected} (GitHub archive layout changed?)"

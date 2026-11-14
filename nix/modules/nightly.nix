@@ -25,7 +25,8 @@
       basePkg = lib.findFirst (p: p.kind == "base") null pdkPkgs;
       pdkManifest = pkgs.writeText "nightly-pdk-manifest.json" (
         builtins.toJSON {
-          repo = "openecos-projects/icsprout55-pdk";
+          repo = "openecos-projects/icsprout55-pdk-v2";
+          version = toolchain.pdk.src.manual;
           base = {
             urlTemplate = basePkg.url_template;
             stripPrefix = basePkg.strip_prefix;
@@ -106,6 +107,15 @@
             # Unit-test the bash SemVer comparison used to pick the nightly
             # base version (lib/semver.nix has its own nix-side tests).
             source ${../../nightly}/lib/common.sh
+            # Refuse public/unknown destinations before assembling or carrying PDK data.
+            (
+              nightly_gh() { printf 'false\n'; }
+              if (nightly_require_private_release); then exit 1; fi
+              nightly_gh() { return 1; }
+              if (nightly_require_private_release); then exit 1; fi
+              nightly_gh() { printf 'true\n'; }
+              nightly_require_private_release
+            )
             t() { test "$(nightly_semver_compare "$1" "$2")" = "$3"; }
             t 0.1.0-alpha.12 0.1.0-alpha.13 -1
             t 0.1.0-alpha.9 0.1.0-alpha.10 -1

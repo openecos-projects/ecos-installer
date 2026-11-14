@@ -495,6 +495,16 @@ verify_sha256() {
 curl_fetch() {
     local _url="$1"
     local _dest="$2"
+    case "$_url" in
+        https://api.github.com/repos/openecos-projects/icsprout55-pdk-v2/tarball/*)
+            if ! command -v gh >/dev/null 2>&1; then
+                printf '%s\n' 'ERROR: Private ICS55 PDK requires gh; authenticate using gh auth login or GH_TOKEN with Contents: read access.' >&2
+                return 1
+            fi
+            gh api --hostname github.com "${_url#https://api.github.com/}" > "$_dest"
+            return $?
+            ;;
+    esac
     if [ "$PRINT_QUIET" = 1 ]; then
         curl -sS -fL \
             --connect-timeout 10 \

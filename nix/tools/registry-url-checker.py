@@ -14,7 +14,9 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from http.client import HTTPException
 import json
+import os
 from pathlib import Path
+import re
 import socket
 import sys
 from typing import Protocol
@@ -93,7 +95,16 @@ def _request_url(
     read_limit: int | None = None,
 ) -> str | None:
     try:
-        request = Request(url, headers=headers or {}, method=method)
+        request_headers = dict(headers or {})
+        if re.fullmatch(
+            r"https://api\.github\.com/repos/openecos-projects/icsprout55-pdk-v2/tarball/[0-9a-f]{40}",
+            url,
+        ):
+            token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+            if not token:
+                return "private PDK requires GH_TOKEN with repository Contents: read access"
+            request_headers["Authorization"] = f"Bearer {token}"
+        request = Request(url, headers=request_headers, method=method)
         with opener(request, timeout) as response:
             if not 200 <= response.status < 300:
                 return f"{method} returned HTTP {response.status}"
@@ -135,7 +146,7 @@ def _platform_urls(path: str, platform: object) -> Iterator[tuple[str, str]]:
             if not isinstance(package, dict):
                 yield f"{path}.packages[{index}]", ""
                 continue
-            for field, required in (("url", True), ("cnb_url", True)):
+            for field, required in (("url", True), ("cnb_url", False)):
                 value = package.get(field)
                 if isinstance(value, str) and value:
                     yield f"{path}.packages[{index}].{field}", value

@@ -6,6 +6,7 @@
 
 nightly_recipe_release() (
   : "${NIGHTLY_ASSETS_DIR:?}"
+  nightly_require_private_release
   workdir="$(mktemp -d)"
   # Cleanup is best-effort: a leftover workdir must not fail a green run.
   trap 'rm -rf "$workdir" 2>/dev/null || nightly_log "warning: could not clean $workdir"' EXIT

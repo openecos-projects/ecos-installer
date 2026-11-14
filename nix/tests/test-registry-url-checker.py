@@ -19,6 +19,7 @@ from typing import Any
 from urllib.error import HTTPError
 from urllib.request import Request
 import unittest
+from unittest.mock import patch
 
 
 def load_checker():
@@ -34,6 +35,33 @@ def load_checker():
 
 
 registry_url_checker = load_checker()
+
+
+class PrivateArchiveTests(unittest.TestCase):
+    def test_token_is_scoped_to_private_pdk_api(self):
+        requests = []
+
+        def opener(request, timeout):
+            requests.append(request)
+            return FakeResponse(200)
+
+        private = (
+            "https://api.github.com/repos/openecos-projects/icsprout55-pdk-v2/tarball/" + "a" * 40
+        )
+        with patch.dict(os.environ, {"GH_TOKEN": "test-token"}):
+            self.assertIsNone(registry_url_checker.check_url_reachable(private, opener=opener))
+            self.assertIsNone(
+                registry_url_checker.check_url_reachable("https://example.com/file", opener=opener)
+            )
+        self.assertEqual(requests[0].get_header("Authorization"), "Bearer test-token")
+        self.assertIsNone(requests[1].get_header("Authorization"))
+
+    def test_missing_token_is_explicit(self):
+        private = (
+            "https://api.github.com/repos/openecos-projects/icsprout55-pdk-v2/tarball/" + "a" * 40
+        )
+        with patch.dict(os.environ, {"GH_TOKEN": "", "GITHUB_TOKEN": ""}):
+            self.assertIn("requires GH_TOKEN", registry_url_checker.check_url_reachable(private))
 
 
 class FakeResponse:
@@ -412,6 +440,15 @@ class RegistryUrlCheckerTests(unittest.TestCase):
         self.assertEqual(
             "https://example.com/ecc.tar.gz",
             locations["tools[0].versions[0].platforms.linux-x86_64.url"],
+        )
+
+    def test_packages_without_public_mirrors_are_valid(self) -> None:
+        data = sample_registry()
+        packages = data["pdks"][0]["versions"][0]["platforms"]["all-platform"]["packages"]
+        for package in packages:
+            del package["cnb_url"]
+        self.assertEqual(
+            [], registry_url_checker.check_registry_urls(data, url_checker=lambda url: None)
         )
 
     def test_empty_url_is_reported(self) -> None:

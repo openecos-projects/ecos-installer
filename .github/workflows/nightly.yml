@@ -69,8 +69,9 @@ jobs:
       # (container, make, pnpm) and only hands them to gh invocations.
       - name: Build and publish
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.NIGHTLY_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           NIGHTLY_READ_TOKEN: ${{ secrets.NIGHTLY_READ_TOKEN }}
+          NIGHTLY_RELEASE_REPO: ${{ vars.NIGHTLY_RELEASE_REPO }}
         run: |
           set -o pipefail
           nix run .#nightly-build -- ${{ inputs.tool || 'all' }} 2>&1 | tee nightly.log

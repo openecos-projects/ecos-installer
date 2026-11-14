@@ -1366,7 +1366,42 @@ def test_github_base_url(h: Harness) -> None:
         fail("proxied GitHub download did not install")
 
 
+def test_private_pdk_authenticated_download(h: Harness) -> None:
+    root = h.tmp()
+    env = xdg_env(root)
+    installer = h.installer(root / "installer.sh")
+    asset = h.assets["icsprout55-pdk-v1.10.102.tar.gz"]
+    private_url = (
+        "https://api.github.com/repos/openecos-projects/icsprout55-pdk-v2/tarball/" + "a" * 40
+    )
+    installer.write_text(
+        installer.read_text().replace(f"{h.base}/github/{asset.name}", private_url)
+    )
+    fake_bin = root / "fake-bin"
+    fake_bin.mkdir()
+    gh = fake_bin / "gh"
+    gh.write_text(
+        "#!/bin/sh\n"
+        'test "$GH_TOKEN" = test-private-token || exit 9\n'
+        'test "$1 $2 $3" = "api --hostname github.com" || exit 10\n'
+        f'test "$4" = "{private_url.removeprefix("https://api.github.com/")}" || exit 11\n'
+        f'exec curl -fsSL "{h.base}/github/{asset.name}"\n'
+    )
+    gh.chmod(0o755)
+    env["PATH"] = str(fake_bin) + os.pathsep + env["PATH"]
+    env["GH_TOKEN"] = "test-private-token"
+    result = run_installer(installer, env, "--with-toolchain")
+    if result.returncode != 0:
+        fail(result.stderr)
+    pdk = roots(env)[0] / "pdks" / "icsprout55" / "v1.10.102"
+    if not (pdk / TECH_LEF).is_file():
+        fail("authenticated PDK was not installed")
+    if "test-private-token" in result.stdout + result.stderr:
+        fail("download leaked authentication token")
+
+
 CASES = [
+    test_private_pdk_authenticated_download,
     test_syntax,
     test_github_success,
     test_github_failure_falls_back_to_cnb,

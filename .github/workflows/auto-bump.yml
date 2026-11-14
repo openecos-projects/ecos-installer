@@ -47,6 +47,8 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: nix flake check
       - name: Check registry URLs
+        env:
+          GH_TOKEN: ${{ secrets.PDK_READ_TOKEN }}
         if: steps.diff.outputs.changed == 'true'
         run: |
           nix build .#tool-registry

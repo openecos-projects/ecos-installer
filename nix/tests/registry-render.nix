@@ -272,7 +272,7 @@ let
     yosysProjectsFromOss = builtins.any (
       t: t.name == "yosys" && (builtins.head t.versions).version == model.ossCadSuite.version
     ) registry.tools;
-    pdkVersionStripsV = pdkVersion.version == "2-2026.10.28" && model.pdk.version == "v2-2026.10.28";
+    pdkVersionStripsV = "v${pdkVersion.version}" == model.pdk.version;
     pdkPackagesShape =
       let
         expectedKeys = [
@@ -380,7 +380,7 @@ let
     jq -e '[.tools[].name] | sort == ["ecc", "ecc-fe", "ecc-fe-cpu-rtl", "ecc-fe-difftest-ref", "ecc-fe-examples", "ecc-fe-soc-ysyx-am", "kepler-formal", "riscv-toolchain", "slang", "surfer", "verilator", "yosys"]' "$json"
     jq -e '[.tools[] | select(.name == "kepler-formal") | .category] == ["formal"]' "$json"
     jq -e '[.pdks[].id] == ["ics55"] and [.mpcs[].id] == ["mpc-frame"]' "$json"
-    jq -e '.pdks[0].versions[0].version == "2-2026.10.28"' "$json"
+    jq -e --arg version '${lib.removePrefix "v" model.pdk.version}' '.pdks[0].versions[0].version == $version' "$json"
     jq -e '.pdks[0].versions[0] | (has("requires") | not)' "$json"
     jq -e '.pdks[0].versions[0].platforms["all-platform"] | (has("post_install") or has("supplemental_assets") | not)' "$json"
     jq -e '(.pdks[0].versions[0].platforms["all-platform"].packages | length) == 7' "$json"

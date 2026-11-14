@@ -202,7 +202,7 @@ display_name = "ICsprout 55nm PDK v2"
 description = "ICsprout 55nm 9T standard-cell process design kit."
 category = "pdk"
 homepage = "https://github.com/openecos-projects/icsprout55-pdk-v2"
-src = { manual = "v2-2026.10.28" }
+src = { manual = "v2-2026.10.28-7d83e6d" }
 requires = [
   "pdk_pkg:icsprout55-base",
   "pdk_pkg:ICsprout55_SC9T_BASIC_HVT_liberty_nldm",
@@ -229,50 +229,50 @@ liberty_files = [
 [[pdk_pkg]]
 id = "icsprout55-base"
 kind = "base"
-url_template = "https://github.com/openecos-projects/icsprout55-pdk/archive/25ed1437181f293b3792342a1fc0f3d2af0398cc.tar.gz"
-name_template = "icsprout55-pdk-25ed1437181f293b3792342a1fc0f3d2af0398cc.tar.gz"
-strip_prefix = "icsprout55-pdk-25ed1437181f293b3792342a1fc0f3d2af0398cc"
+url_template = "https://api.github.com/repos/openecos-projects/icsprout55-pdk-v2/tarball/7d83e6d8b0427ae1b5e76b43a112f26fbabe4a50"
+name_template = "icsprout55-pdk-v2-7d83e6d.tar.gz"
+strip_prefix = "openecos-projects-icsprout55-pdk-v2-7d83e6d8b0427ae1b5e76b43a112f26fbabe4a50"
 
 [[pdk_pkg]]
 id = "ICsprout55_SC9T_BASIC_HVT_liberty_nldm"
 kind = "liberty"
-url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/{version}/ICsprout55_SC9T_BASIC_HVT_liberty_nldm.tar.bz2"
+url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v2-2026.10.28/ICsprout55_SC9T_BASIC_HVT_liberty_nldm.tar.bz2"
 dest = "IP/STD_cell/ICsprout55_SC9T_BASIC_HVT"
 
 [[pdk_pkg]]
 id = "ICsprout55_SC9T_BASIC_LVT_liberty_nldm"
 kind = "liberty"
-url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/{version}/ICsprout55_SC9T_BASIC_LVT_liberty_nldm.tar.bz2"
+url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v2-2026.10.28/ICsprout55_SC9T_BASIC_LVT_liberty_nldm.tar.bz2"
 dest = "IP/STD_cell/ICsprout55_SC9T_BASIC_LVT"
 
 [[pdk_pkg]]
 id = "ICsprout55_SC9T_BASIC_SVT_liberty_nldm"
 kind = "liberty"
-url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/{version}/ICsprout55_SC9T_BASIC_SVT_liberty_nldm.tar.bz2"
+url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v2-2026.10.28/ICsprout55_SC9T_BASIC_SVT_liberty_nldm.tar.bz2"
 dest = "IP/STD_cell/ICsprout55_SC9T_BASIC_SVT"
 
 [[pdk_pkg]]
 id = "ICsprout55_SC9T_BASIC_HVT_gds"
 kind = "gds"
-url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/{version}/ICsprout55_SC9T_BASIC_HVT_gds.tar.bz2"
+url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v2-2026.10.28/ICsprout55_SC9T_BASIC_HVT_gds.tar.bz2"
 dest = "IP/STD_cell/ICsprout55_SC9T_BASIC_HVT"
 
 [[pdk_pkg]]
 id = "ICsprout55_SC9T_BASIC_LVT_gds"
 kind = "gds"
-url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/{version}/ICsprout55_SC9T_BASIC_LVT_gds.tar.bz2"
+url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v2-2026.10.28/ICsprout55_SC9T_BASIC_LVT_gds.tar.bz2"
 dest = "IP/STD_cell/ICsprout55_SC9T_BASIC_LVT"
 
 [[pdk_pkg]]
 id = "ICsprout55_SC9T_BASIC_SVT_gds"
 kind = "gds"
-url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/{version}/ICsprout55_SC9T_BASIC_SVT_gds.tar.bz2"
+url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v2-2026.10.28/ICsprout55_SC9T_BASIC_SVT_gds.tar.bz2"
 dest = "IP/STD_cell/ICsprout55_SC9T_BASIC_SVT"
 
 [[pdk_pkg]]
 id = "ICsprout_55LLULP1225_IO_0901_gds"
 kind = "gds"
-url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/{version}/ICsprout_55LLULP1225_IO_0901_gds.tar.bz2"
+url_template = "https://github.com/openecos-projects/icsprout55-pdk/releases/download/v2-2026.10.28/ICsprout_55LLULP1225_IO_0901_gds.tar.bz2"
 dest = "IP/IO"
 
 [mpc-frame]

@@ -16,6 +16,27 @@ With OSS CAD Suite, the ICS55 PDK, and ecc-sizer:
 curl -fsSL https://release.openecos.com/installers/ecc/latest/ecc-installer.sh | sh -s -- --with-toolchain
 ```
 
+The ICS55 v2 base is pinned to the private `openecos-projects/icsprout55-pdk-v2`
+repository. Install GitHub CLI (`gh`) and authenticate with `gh auth login`, or
+provide `GH_TOKEN` with Contents: read access to that repository. The installer
+uses `gh api` for this archive; it does not send credentials to proxy or CNB URLs.
+Existing Liberty/GDS assets continue to use the original public v2 release.
+The PDK install version includes the source revision (`v2-2026.10.28-7d83e6d`),
+so an older installation is replaced rather than reused.
+
+CI URL checks require the `PDK_READ_TOKEN` secret. Full nightly bundles include
+private PDK source and can only be published to a private repository: configure
+the `NIGHTLY_RELEASE_REPO` variable, a `NIGHTLY_RELEASE_TOKEN` with release write
+access there, and `NIGHTLY_READ_TOKEN` with private PDK Contents: read access in
+addition to its existing Actions permissions. Public destinations are rejected
+before PDK assembly and again before release, including carried-forward bundles.
+No private PDK base is mirrored to the public PDK repository or CNB.
+
+To advance the fixed private base, download the new commit using `gh api`, verify
+the archive and its SHA-256, update `nix/toolchain.toml`, and use
+`nix/scripts/lock-edit.sh set ... [name]` to update the corresponding lock. The
+anonymous nvfetcher prefetch path is not suitable for a new private archive.
+
 `--download-source auto|github|cnb` selects the mirror (`auto` tries GitHub, then CNB). The PDK base's CNB mirror is a distinct git archive with its own SHA-256.
 
 If GitHub is unreachable, set a prefix that replaces `https://github.com`:

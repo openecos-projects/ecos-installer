@@ -60,6 +60,15 @@ let
     test "$(jq -S .slang "$work/case1.json")" = "$before_slang"
     canon "$work/case1.json" | cmp - "$work/case1.json"
 
+    # API archive URLs need an explicit filename for extraction.
+    ${lockEdit} set "$work/case1.json" ecc v9.9.9 \
+      "https://api.github.com/repos/owner/repo/tarball/abc" \
+      "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" \
+      0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+      42 archive.tar.gz
+    jq -e '.ecc.src.name == "archive.tar.gz"' "$work/case1.json" >/dev/null
+    test "$(jq -S .slang "$work/case1.json")" = "$before_slang"
+
     # A missing entry fails without touching the file.
     cp ${fixture} "$work/case2.json"
     before="$(sha256sum "$work/case2.json" | cut -d' ' -f1)"

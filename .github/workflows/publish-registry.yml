@@ -28,6 +28,8 @@ jobs:
       - name: Build registry JSON
         run: nix build .#tool-registry
       - name: Check registry URLs
+        env:
+          GH_TOKEN: ${{ secrets.PDK_READ_TOKEN }}
         run: nix run .#check-registry-urls -- result
       - name: Record output checksum
         id: hash
