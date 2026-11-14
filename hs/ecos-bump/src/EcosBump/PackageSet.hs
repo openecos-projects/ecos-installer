@@ -7,7 +7,8 @@
 -- filterRegex (non-selected entries become TemporaryStale and reuse their
 -- seeded versions). forceFetch is attached only to mutable -latest entries
 -- inside the current selection, and PermanentStale only to the pinned
--- pdk_pkg packages.
+-- pdk_pkg packages outside the selection. Selected manual pins must be
+-- refreshed when the PDK release in toolchain.toml changes.
 module EcosBump.PackageSet (buildPackageSet) where
 
 import Data.Default (def)
@@ -54,7 +55,7 @@ buildPackageSet entries mpin selection lockSrcs = mapM_ defineEntry entries
             then ForceFetch
             else NoForceFetch
         staleVal =
-          if ePinned e
+          if ePinned e && eId e `notElem` selection
             then PermanentStale
             else NoStale
 

@@ -63,9 +63,18 @@ let
     )
   );
   nonBaseCnbSha = tryModel (
-    withPkg "ics55_LLSC_H7CH_liberty" (pkg: pkg // { needs_cnb_sha256 = true; })
+    withPkg "ICsprout55_SC9T_BASIC_HVT_liberty_nldm" (pkg: pkg // { needs_cnb_sha256 = true; })
   );
-  missingCnbSha = tryModel (withLock "icsprout55-base" (l: builtins.removeAttrs l [ "cnb_sha256" ]));
+  missingCnbSha = tryModel (
+    withPkg "icsprout55-base" (
+      pkg:
+      pkg
+      // {
+        cnb_url_template = "https://cnb.cool/ecoslab/icsprout55-pdk/-/git/archive/{version}.tar.gz";
+        needs_cnb_sha256 = true;
+      }
+    )
+  );
 
   older = builtins.replaceStrings [ model.ecc.version ] [ "0.1.0-alpha.10" ] text;
   malformed = "not an installer\n";

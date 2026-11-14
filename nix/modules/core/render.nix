@@ -119,26 +119,31 @@
                 url = pdk.base.url;
                 # The CNB base archive is a git archive with different bytes
                 # from the GitHub tarball, so it carries its own cnb_sha256.
-                cnb_url = pdk.base.cnbUrl;
-                cnb_sha256 = pdk.base.cnbSha256;
                 sha256 = pdk.base.sha256;
                 size = pdk.base.size;
                 strip_prefix = pdk.base.stripPrefix;
               }
               # The CNB git archive also lacks the GitHub wrapper directory,
               # so the mirror extracts with its own (empty) strip prefix.
+              // lib.optionalAttrs (pdk.base.cnbUrl != "") {
+                cnb_url = pdk.base.cnbUrl;
+                cnb_sha256 = pdk.base.cnbSha256;
+              }
               // lib.optionalAttrs (pdk.base ? cnbStripPrefix) {
                 cnb_strip_prefix = pdk.base.cnbStripPrefix;
               }
               // {
-                packages = map (pkg: {
-                  path = pkg.name;
-                  url = pkg.url;
-                  cnb_url = pkg.cnbUrl;
-                  sha256 = pkg.sha256;
-                  size = pkg.size;
-                  dest = pkg.dest;
-                }) pdk.assets;
+                packages = map (
+                  pkg:
+                  {
+                    path = pkg.name;
+                    url = pkg.url;
+                    sha256 = pkg.sha256;
+                    size = pkg.size;
+                    dest = pkg.dest;
+                  }
+                  // lib.optionalAttrs (pkg.cnbUrl != "") { cnb_url = pkg.cnbUrl; }
+                ) pdk.assets;
               };
             }
           ];

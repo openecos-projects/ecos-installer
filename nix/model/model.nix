@@ -239,7 +239,16 @@ let
         inherit id kind;
         name = requireNonEmpty "${label}.name" (checked.name or "");
         url = requireHttpsUrl "${label}.url" (checked.url or "");
-        cnbUrl = requireCnb id (checked.cnb_url or "");
+        cnbUrl =
+          if
+            builtins.elem (checked.cnb_url or null) [
+              null
+              ""
+            ]
+          then
+            ""
+          else
+            requireCnb id checked.cnb_url;
         sha256 = requireHex id (checked.sha256 or "");
         size = requireSize label (requireInt "${label}.size" (checked.size or 0));
       };
@@ -250,9 +259,19 @@ let
       else
         common
         // {
-          cnbSha256 = requireHex "${label} cnb mirror" (
-            requireNonEmpty "${label}.cnb_sha256" (checked.cnb_sha256 or "")
-          );
+          cnbSha256 =
+            if common.cnbUrl == "" then
+              if
+                builtins.elem (checked.cnb_sha256 or null) [
+                  null
+                  ""
+                ]
+              then
+                ""
+              else
+                throwUn "${label} cnb_sha256 set without cnb_url"
+            else
+              requireHex "${label} cnb mirror" (requireNonEmpty "${label}.cnb_sha256" (checked.cnb_sha256 or ""));
           stripPrefix = requireNonEmpty "${label}.strip_prefix" (checked.strip_prefix or "");
         }
         // (
@@ -628,9 +647,9 @@ let
   ) toolModels;
 
   libertyNames = [
-    "ics55_LLSC_H7CH_liberty.tar.bz2"
-    "ics55_LLSC_H7CL_liberty.tar.bz2"
-    "ics55_LLSC_H7CR_liberty.tar.bz2"
+    "ICsprout55_SC9T_BASIC_HVT_liberty_nldm.tar.bz2"
+    "ICsprout55_SC9T_BASIC_LVT_liberty_nldm.tar.bz2"
+    "ICsprout55_SC9T_BASIC_SVT_liberty_nldm.tar.bz2"
   ];
 
   model = {

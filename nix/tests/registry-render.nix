@@ -149,7 +149,11 @@ let
     (mustFail "orphan-pkg" (
       tryModel (
         withSection "pdk" (
-          p: p // { requires = builtins.filter (dep: dep != "pdk_pkg:ics55_LLSC_H7CR_gds") p.requires; }
+          p:
+          p
+          // {
+            requires = builtins.filter (dep: dep != "pdk_pkg:ICsprout55_SC9T_BASIC_SVT_gds") p.requires;
+          }
         )
       )
     ))
@@ -177,16 +181,20 @@ let
       )
     ))
     (mustFail "absolute-dest" (
-      tryModel (withPkgs (mapPkg "ics55_LLSC_H7CH_liberty" (pkg: pkg // { dest = "/absolute"; })))
+      tryModel (
+        withPkgs (mapPkg "ICsprout55_SC9T_BASIC_HVT_liberty_nldm" (pkg: pkg // { dest = "/absolute"; }))
+      )
     ))
     (mustFail "traversal-dest" (
-      tryModel (withPkgs (mapPkg "ics55_LLSC_H7CH_liberty" (pkg: pkg // { dest = "../evil"; })))
+      tryModel (
+        withPkgs (mapPkg "ICsprout55_SC9T_BASIC_HVT_liberty_nldm" (pkg: pkg // { dest = "../evil"; }))
+      )
     ))
     (mustFail "same-dest-same-kind" (
       tryModel (
         withPkgs (
-          mapPkg "ics55_LLSC_H7CL_liberty" (
-            pkg: pkg // { dest = "IP/STD_cell/ics55_LLSC_H7C_V1p10C100/ics55_LLSC_H7CH"; }
+          mapPkg "ICsprout55_SC9T_BASIC_LVT_liberty_nldm" (
+            pkg: pkg // { dest = "IP/STD_cell/ICsprout55_SC9T_BASIC_HVT"; }
           )
         )
       )
@@ -264,11 +272,10 @@ let
     yosysProjectsFromOss = builtins.any (
       t: t.name == "yosys" && (builtins.head t.versions).version == model.ossCadSuite.version
     ) registry.tools;
-    pdkVersionStripsV = pdkVersion.version == "1.10.102" && model.pdk.version == "v1.10.102";
+    pdkVersionStripsV = pdkVersion.version == "2-2026.10.28" && model.pdk.version == "v2-2026.10.28";
     pdkPackagesShape =
       let
         expectedKeys = [
-          "cnb_url"
           "dest"
           "path"
           "sha256"
@@ -279,16 +286,13 @@ let
       builtins.length pdkPlatform.packages == 7
       && builtins.all (pkg: builtins.attrNames pkg == expectedKeys) pdkPlatform.packages
       && pdkPlatform ? url
-      && pdkPlatform ? cnb_url
-      && pdkPlatform ? cnb_sha256
+      && !(pdkPlatform ? cnb_url)
+      && !(pdkPlatform ? cnb_sha256)
       && pdkPlatform ? sha256
       && pdkPlatform ? size
       && pdkPlatform ? strip_prefix;
-    pdkBaseCnb =
-      pdkPlatform.cnb_url == model.pdk.base.cnbUrl
-      && pdkPlatform.cnb_sha256 == model.pdk.base.cnbSha256
-      && pdkPlatform.cnb_strip_prefix == ""
-      && model.pdk.base.cnbStripPrefix == "";
+    pdkBaseNoUnverifiedMirror =
+      !(pdkPlatform ? cnb_url) && !(pdkPlatform ? cnb_sha256) && !(pdkPlatform ? cnb_strip_prefix);
     # Only components with a cnb_url_template expose a mirror: ecc, yosys
     # (oss-cad-suite), and kepler-formal today.
     toolCnbMirrors =
@@ -376,14 +380,12 @@ let
     jq -e '[.tools[].name] | sort == ["ecc", "ecc-fe", "ecc-fe-cpu-rtl", "ecc-fe-difftest-ref", "ecc-fe-examples", "ecc-fe-soc-ysyx-am", "kepler-formal", "riscv-toolchain", "slang", "surfer", "verilator", "yosys"]' "$json"
     jq -e '[.tools[] | select(.name == "kepler-formal") | .category] == ["formal"]' "$json"
     jq -e '[.pdks[].id] == ["ics55"] and [.mpcs[].id] == ["mpc-frame"]' "$json"
-    jq -e '.pdks[0].versions[0].version == "1.10.102"' "$json"
+    jq -e '.pdks[0].versions[0].version == "2-2026.10.28"' "$json"
     jq -e '.pdks[0].versions[0] | (has("requires") | not)' "$json"
     jq -e '.pdks[0].versions[0].platforms["all-platform"] | (has("post_install") or has("supplemental_assets") | not)' "$json"
     jq -e '(.pdks[0].versions[0].platforms["all-platform"].packages | length) == 7' "$json"
-    jq -e 'all(.pdks[0].versions[0].platforms["all-platform"].packages[]; has("path") and has("url") and has("cnb_url") and has("sha256") and has("size") and has("dest"))' "$json"
-    jq -e '.pdks[0].versions[0].platforms["all-platform"] | has("cnb_url") and has("cnb_sha256")' "$json"
-    jq -e '.pdks[0].versions[0].platforms["all-platform"].cnb_sha256 | test("^[0-9a-f]{64}$")' "$json"
-    jq -e '.pdks[0].versions[0].platforms["all-platform"] | has("cnb_strip_prefix") and .cnb_strip_prefix == ""' "$json"
+    jq -e 'all(.pdks[0].versions[0].platforms["all-platform"].packages[]; has("path") and has("url") and (has("cnb_url") | not) and has("sha256") and has("size") and has("dest"))' "$json"
+    jq -e '.pdks[0].versions[0].platforms["all-platform"] | (has("cnb_url") or has("cnb_sha256") or has("cnb_strip_prefix")) | not' "$json"
     jq -e '[.tools[] | select(.versions[0].platforms["linux-x86_64"] | has("cnb_url")) | .name] | sort == ["ecc", "kepler-formal", "yosys"]' "$json"
     jq -e 'all(.tools[] | select(.versions[0].platforms["linux-x86_64"] | has("cnb_url")) | .versions[0].platforms["linux-x86_64"].cnb_url; startswith("https://cnb.cool/"))' "$json"
     jq -e '[.tools[] | .versions[0].platforms["linux-x86_64"] | select(has("cnb_sha256"))] | length == 0' "$json"
