@@ -41,7 +41,9 @@ nightly_recipe_ecos_studio() (
   # Pre-init the submodules shallowly (the PDK submodule carries large binary
   # assets); make setup's plain `git submodule update` then finds every pin
   # already satisfied and adds nothing.
-  git submodule update --init --recursive --depth 1
+  GH_TOKEN="${NIGHTLY_DEPS_TOKEN:-$NIGHTLY_GH_TOKEN}" GIT_TERMINAL_PROMPT=0 \
+    git -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
+    submodule update --init --recursive --depth 1
   make setup
 
   # Stage the portable sizer runtime for build-binaries.sh: prefer this run's
