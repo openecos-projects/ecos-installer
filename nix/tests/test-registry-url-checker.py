@@ -439,6 +439,14 @@ class RegistryUrlCheckerTests(unittest.TestCase):
         )
         self.assertIn("https://cnb.example.com/b.tar.bz2", errors[0])
 
+    def test_packages_can_omit_a_mirror(self) -> None:
+        data = sample_registry()
+        package = data["pdks"][0]["versions"][0]["platforms"]["all-platform"]["packages"][0]
+        del package["cnb_url"]
+        self.assertEqual(
+            [], registry_url_checker.check_registry_urls(data, url_checker=lambda url: None)
+        )
+
     def test_json_round_trip(self) -> None:
         """The enumerator works on the serialized form of a registry."""
         data = json.loads(json.dumps(sample_registry()))
