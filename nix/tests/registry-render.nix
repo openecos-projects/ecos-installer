@@ -228,7 +228,8 @@ let
     ))
   ];
 
-  pdkVersion = builtins.head ((builtins.head registry.pdks).versions);
+  pdkVersions = (builtins.head registry.pdks).versions;
+  pdkVersion = lib.last pdkVersions;
   pdkPlatform = pdkVersion.platforms.all-platform;
   mpcVersion = builtins.head ((builtins.head registry.mpcs).versions);
 
@@ -241,7 +242,7 @@ let
       && builtins.length registry.pdks == 1
       && builtins.length registry.mpcs == 1;
     singleVersion = builtins.all (entity: builtins.length entity.versions == 1) (
-      registry.tools ++ registry.pdks ++ registry.mpcs
+      registry.tools ++ registry.mpcs
     );
     noSizerEntity = builtins.all (t: t.name != "ecc-sizer") registry.tools;
     allEntitiesPresent =
@@ -264,6 +265,12 @@ let
     yosysProjectsFromOss = builtins.any (
       t: t.name == "yosys" && (builtins.head t.versions).version == model.ossCadSuite.version
     ) registry.tools;
+    publicPdkVersions =
+      map (entry: entry.version) pdkVersions == [
+        "2.0.0"
+        "1.10.103"
+        "1.10.102"
+      ];
     pdkVersionStripsV = pdkVersion.version == "1.10.102" && model.pdk.version == "v1.10.102";
     pdkPackagesShape =
       let
@@ -371,23 +378,26 @@ let
     test -s "$json"
     jq -e '.schema_version == 2' "$json"
     jq -e '(.tools | length) == 12 and (.pdks | length) == 1 and (.mpcs | length) == 1' "$json"
-    jq -e 'all(.tools[], .pdks[], .mpcs[]; (.versions | length) == 1)' "$json"
+    jq -e 'all(.tools[], .mpcs[]; (.versions | length) == 1)' "$json"
     jq -e '[.tools[].name] | (index("ecc") and index("yosys") and index("kepler-formal") and (index("ecc-sizer") | not))' "$json"
     jq -e '[.tools[].name] | sort == ["ecc", "ecc-fe", "ecc-fe-cpu-rtl", "ecc-fe-difftest-ref", "ecc-fe-examples", "ecc-fe-soc-ysyx-am", "kepler-formal", "riscv-toolchain", "slang", "surfer", "verilator", "yosys"]' "$json"
     jq -e '[.tools[] | select(.name == "kepler-formal") | .category] == ["formal"]' "$json"
     jq -e '[.pdks[].id] == ["ics55"] and [.mpcs[].id] == ["mpc-frame"]' "$json"
-    jq -e '.pdks[0].versions[0].version == "1.10.102"' "$json"
-    jq -e '.pdks[0].versions[0] | (has("requires") | not)' "$json"
-    jq -e '.pdks[0].versions[0].platforms["all-platform"] | (has("post_install") or has("supplemental_assets") | not)' "$json"
-    jq -e '(.pdks[0].versions[0].platforms["all-platform"].packages | length) == 7' "$json"
-    jq -e 'all(.pdks[0].versions[0].platforms["all-platform"].packages[]; has("path") and has("url") and has("cnb_url") and has("sha256") and has("size") and has("dest"))' "$json"
-    jq -e '.pdks[0].versions[0].platforms["all-platform"] | has("cnb_url") and has("cnb_sha256")' "$json"
-    jq -e '.pdks[0].versions[0].platforms["all-platform"].cnb_sha256 | test("^[0-9a-f]{64}$")' "$json"
-    jq -e '.pdks[0].versions[0].platforms["all-platform"] | has("cnb_strip_prefix") and .cnb_strip_prefix == ""' "$json"
+    jq -e '[.pdks[0].versions[].version] == ["2.0.0", "1.10.103", "1.10.102"]' "$json"
+    jq -e 'all(.pdks[0].versions[:2][].platforms["all-platform"];
+      (.packages | length) == 7 and
+      (.url | startswith("https://github.com/openecos-projects/icsprout55-pdk/releases/download/")))' "$json"
+    jq -e '.pdks[0].versions[-1] | (has("requires") | not)' "$json"
+    jq -e '.pdks[0].versions[-1].platforms["all-platform"] | (has("post_install") or has("supplemental_assets") | not)' "$json"
+    jq -e '(.pdks[0].versions[-1].platforms["all-platform"].packages | length) == 7' "$json"
+    jq -e 'all(.pdks[0].versions[-1].platforms["all-platform"].packages[]; has("path") and has("url") and has("cnb_url") and has("sha256") and has("size") and has("dest"))' "$json"
+    jq -e '.pdks[0].versions[-1].platforms["all-platform"] | has("cnb_url") and has("cnb_sha256")' "$json"
+    jq -e '.pdks[0].versions[-1].platforms["all-platform"].cnb_sha256 | test("^[0-9a-f]{64}$")' "$json"
+    jq -e '.pdks[0].versions[-1].platforms["all-platform"] | has("cnb_strip_prefix") and .cnb_strip_prefix == ""' "$json"
     jq -e '[.tools[] | select(.versions[0].platforms["linux-x86_64"] | has("cnb_url")) | .name] | sort == ["ecc", "kepler-formal", "yosys"]' "$json"
     jq -e 'all(.tools[] | select(.versions[0].platforms["linux-x86_64"] | has("cnb_url")) | .versions[0].platforms["linux-x86_64"].cnb_url; startswith("https://cnb.cool/"))' "$json"
     jq -e '[.tools[] | .versions[0].platforms["linux-x86_64"] | select(has("cnb_sha256"))] | length == 0' "$json"
-    jq -e 'all(.pdks[0].versions[0].platforms["all-platform"].packages[]; has("cnb_sha256") | not)' "$json"
+    jq -e 'all(.pdks[0].versions[-1].platforms["all-platform"].packages[]; has("cnb_sha256") | not)' "$json"
     jq -e '.mpcs[0].versions[0].platforms["all-platform"] | (has("cnb_url") or has("cnb_sha256")) | not' "$json"
     jq -e '.mpcs[0].versions[0].platforms["all-platform"].update_source == {"type": "github_branch", "branch": "main"}' "$json"
     jq -e '([.tools[] | select(.name == "yosys") | .versions[0].version] | length) == 1' "$json"
