@@ -105,6 +105,7 @@
       pdkEntity =
         let
           pdk = model.pdk;
+          releases = builtins.fromTOML (builtins.readFile ./pdk-registry-releases.toml);
         in
         {
           id = pdk.id;
@@ -112,7 +113,7 @@
           description = pdk.description;
           category = pdk.category;
           homepage = pdk.homepage;
-          versions = [
+          versions = releases.versions ++ [
             {
               version = lib.removePrefix "v" pdk.version;
               platforms.all-platform = {

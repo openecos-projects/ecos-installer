@@ -113,7 +113,7 @@ Default checks do not download the real ECC, OSS CAD Suite, or PDK archives.
 
 ## Tool registry publishing
 
-`nix/toolchain.toml` (rules) and `nix/_sources/generated.json` (locks) are the single source of truth for both the installer and the ECOS Studio registry. `nix build .#tool-registry` projects the merged model to `tool-registry.json` (`schema_version` 2; the PDK entry is a base lock plus a `packages` array; the sizer is installer-only and never appears).
+`nix/toolchain.toml` (rules) and `nix/_sources/generated.json` (locks) define the installer and the shared tool entries. `nix build .#tool-registry` projects the merged model to `tool-registry.json` (`schema_version` 2). Studio's two additional ICS55 releases are pinned in `nix/modules/core/pdk-registry-releases.toml`. Each PDK version has a base archive and a `packages` array. Sizer is installer-only.
 
 Assets with a CNB mirror carry `cnb_url` next to `url` so ECOS Studio can fall back to — or explicitly switch to — the CNB mirror when GitHub is unreachable. The PDK base additionally carries `cnb_sha256` because its CNB git archive has different bytes from the GitHub tarball, and `cnb_strip_prefix` (empty: extract at root) because the git archive lacks the GitHub wrapper directory; all other mirrors serve byte-identical assets and verify against the same `sha256`. Components without a mirror simply omit `cnb_url`.
 

@@ -135,7 +135,7 @@ def _platform_urls(path: str, platform: object) -> Iterator[tuple[str, str]]:
             if not isinstance(package, dict):
                 yield f"{path}.packages[{index}]", ""
                 continue
-            for field, required in (("url", True), ("cnb_url", True)):
+            for field, required in (("url", True), ("cnb_url", False)):
                 value = package.get(field)
                 if isinstance(value, str) and value:
                     yield f"{path}.packages[{index}].{field}", value
